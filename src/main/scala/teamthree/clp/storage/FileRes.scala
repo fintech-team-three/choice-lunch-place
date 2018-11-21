@@ -6,17 +6,19 @@ import scala.io.Source
 import scala.util.Try
 
 case class FileRes[A](run: List[String] => A) {
-  def map[B](f: A => B): FileRes[B] = FileRes(src => f(run(src)))
+  def map[B](f: A => B): FileRes[B] =
+    FileRes(src => f(run(src)))
 
   def flatMap[B](f: A => FileRes[B]): FileRes[B] =
     FileRes(src => f(run(src)).run(src))
 
+  // Тип URL используется для того, чтобы корректно работало чтение файлов из папки resources
   def execute(url: URL): Try[A] = Try {
-    println("File opening...")
     val bufferedSource = Source.fromURL(url)
+    println("File was opened")
     val result = run(bufferedSource.getLines.toList)
     bufferedSource.close()
-    println("File close")
+    println("File was closed")
     result
   }
 }
