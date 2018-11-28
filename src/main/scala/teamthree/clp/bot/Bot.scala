@@ -16,27 +16,38 @@ import scala.collection.mutable
 import scala.concurrent.Future
 import scala.util.Try
 
-
 case class ApplyPoll(authorId: Long, sendSurvey: Boolean)
 
-case class PollItem(authorId: Long, item: String)
+case class PollItem(authorId: Long, value: String)
 
-case class Poll(authorId: Long, participants: Map[Long, Boolean], places: Map[String, Int])
+case class Poll(authorId: Long,
+                author: String,
+                name: String,
+                participants: Map[Long, Boolean],
+                places: Map[String, Int])
 
 object Poll {
 
-  def vote(poll: Poll, item: PollItem, voter: Long): Poll = {
+  def vote(poll: Poll, pollItem: PollItem, voter: Long): Poll = {
 
     if (poll.participants(voter))
       poll
     else {
       poll.copy(participants = poll.participants + (voter -> true),
-        places = poll.places + (item.item -> (poll.places(item.item) + 1)))
+        places = poll.places + (pollItem.value -> (poll.places(pollItem.value) + 1)))
     }
+  }
+
+  def getResult(poll: Poll): String = {
+    poll.places.maxBy(_._2)._1
   }
 }
 
-case class PollBuilder(stage: Int = 0, time: String = "", users: List[Long] = List.empty, places: List[String] = List.empty)
+case class PollBuilder(name: String,
+                       stage: Int = 0,
+                       time: String = "",
+                       users: List[Long] = List.empty,
+                       places: List[String] = List.empty)
 
 abstract class BaseBot(val token: String) extends TelegramBot {
   LoggerConfig.factory = PrintLoggerFactory()
@@ -98,14 +109,14 @@ class CLPBot(token: String) extends BaseBot(token)
 
   stages += { (b: PollBuilder, message: Message) =>
 
-    val result = b.copy(b.stage + 1, places = message.text.get.split(',').toList)
+    val result = b.copy(stage = b.stage + 1, places = message.text.get.split(',').toList)
 
     val m = InlineKeyboardMarkup.singleRow(Seq(
       makeInlineButton("Отправить", ApplyPoll(message.source, sendSurvey = true)),
       makeInlineButton("Отменить", ApplyPoll(message.source, sendSurvey = false))
     ))
 
-    request(SendMessage(message.source, "Отправить опрос", replyMarkup = m))
+    request(SendMessage(message.source, "Отправить опрос?", replyMarkup = m))
     result
   }
 
@@ -115,48 +126,19 @@ class CLPBot(token: String) extends BaseBot(token)
     }
   }
 
-  def sendSurvey(survey: Poll): Unit = {
+  def sendPoll(poll: Poll): Unit = {
 
-    val buttons = survey.places.keys
-      .map { place => makeInlineButton(place, PollItem(survey.authorId, place)) }
+    val buttons = poll.places.keys
+      .map { place => makeInlineButton(place, PollItem(poll.authorId, place)) }
       .toSeq
 
     val m = InlineKeyboardMarkup.singleColumn(buttons)
 
     for {
-      u <- survey.participants.keys
-      m <- SendMessage(u, "" + "приглашает вас в одно из этих мест:", replyMarkup = m)
-    } yield request(m)
+      p <- poll.participants.keys
+      message <- SendMessage(p, s"${poll.author} приглашает вас на ${poll.name} в одно из этих мест:", replyMarkup = m)
+    } yield request(message)
 
-  }
-
-  onCommand('newpoll) { implicit msg =>
-    pollBuilderStorage.put(msg.from.get.id, PollBuilder())
-    reply("Введите логины тех с кем вы хотите пойти:")
-  }
-
-  onCommand('cancel) { implicit msg =>
-    pollBuilderStorage.remove(msg.source)
-  }
-
-  onCommand('status) { implicit msg =>
-
-    pollStorage.find(msg.source) match {
-      case Some(value) =>
-        reply("Результаты:\n" + value.places.map(p => p._1 + ": " + p._2).mkString("\n"))
-
-      case None => reply("Сначала создайте опрос")
-    }
-
-  }
-
-  def notACommand(msg: Message): Boolean =
-    msg.text.exists(m => !m.startsWith("/"))
-
-  declarative.when(onMessage, notACommand) {
-    implicit msg =>
-
-      updateStage(msg)
   }
 
   onCommand('start) { implicit msg =>
@@ -182,6 +164,56 @@ class CLPBot(token: String) extends BaseBot(token)
       parseMode = ParseMode.Markdown)
   }
 
+  onCommand('newpoll) { implicit msg =>
+
+    withArgs {
+      case args if args.length == 1 =>
+        pollBuilderStorage.put(msg.source, PollBuilder(args.head))
+      case _ =>
+        reply("недопустимый аргумент: название опроса")
+    }
+
+    reply("Введите логины тех с кем вы хотите пойти:")
+  }
+
+  onCommand('endpoll) { implicit msg =>
+
+    pollStorage.find(msg.source) match {
+      case Some(poll) =>
+        val replyString = "В результате голосования выбрано: " + Poll.getResult(poll)
+
+        reply(replyString)
+
+        for {
+          p <- poll.participants.keys
+          message <- SendMessage(p, replyString)
+        } yield request(message)
+
+      case None => reply("Сначала создайте опрос")
+    }
+  }
+
+  onCommand('cancel) { implicit msg =>
+    pollBuilderStorage.remove(msg.source)
+  }
+
+  onCommand('status) { implicit msg =>
+    pollStorage.find(msg.source) match {
+      case Some(value) =>
+        reply("Результаты \"" + value.name + "\" :\n" + value.places.map(p => p._1 + ": " + p._2).mkString("\n"))
+
+      case None => reply("Сначала создайте опрос")
+    }
+  }
+
+  def notACommand(msg: Message): Boolean =
+    msg.text.exists(m => !m.startsWith("/"))
+
+  declarative.when(onMessage, notACommand) {
+    implicit msg =>
+      updateStage(msg)
+  }
+
   override def receiveCallbackQuery(callbackQuery: CallbackQuery): Unit = {
 
     Try {
@@ -193,11 +225,11 @@ class CLPBot(token: String) extends BaseBot(token)
 
           if (form.isDefined) {
 
-            val surv = Poll(value.authorId, Map(form.get.users.map { u => u -> false }: _*),
+            val poll = Poll(value.authorId, callbackQuery.from.username.get, form.get.name, Map(form.get.users.map { u => u -> false }: _*),
               Map(form.get.places.map { u => u -> 0 }: _*))
 
-            pollStorage.put(value.authorId, surv)
-            sendSurvey(surv)
+            pollStorage.put(value.authorId, poll)
+            sendPoll(poll)
           }
         }
       case None => ()
@@ -208,6 +240,7 @@ class CLPBot(token: String) extends BaseBot(token)
     }.getOrElse(None) match {
       case Some(value) => ()
         pollStorage.findAndUpdate(value.authorId) { poll =>
+          request(SendMessage(callbackQuery.from.id.toLong, "Ваш голос засчитан"))
           Poll.vote(poll, value, callbackQuery.from.id.toLong)
         }
       case None => ()

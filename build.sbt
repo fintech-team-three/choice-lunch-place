@@ -11,3 +11,5 @@ libraryDependencies += "com.bot4s" %% "telegram-akka" % "4.0.0-RC2"
 
 libraryDependencies += "org.json4s" %% "json4s-native" % "3.6.2"
 libraryDependencies += "org.json4s" %% "json4s-jackson" % "3.6.2"
+
+enablePlugins(JavaAppPackaging)
