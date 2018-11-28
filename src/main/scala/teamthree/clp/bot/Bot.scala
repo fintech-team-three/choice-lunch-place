@@ -16,35 +16,6 @@ case class ApplyPoll(authorId: Long, sendPoll: Boolean)
 
 case class PollItem(authorId: Long, value: String)
 
-case class Poll(authorId: Long,
-                author: String,
-                name: String,
-                participants: Map[Long, Boolean],
-                places: Map[String, Int])
-
-object Poll {
-
-  def vote(poll: Poll, pollItem: PollItem, voter: Long): Poll = {
-
-    if (poll.participants(voter))
-      poll
-    else {
-      poll.copy(participants = poll.participants + (voter -> true),
-        places = poll.places + (pollItem.value -> (poll.places(pollItem.value) + 1)))
-    }
-  }
-
-  def getResult(poll: Poll): String = {
-    poll.places.maxBy(_._2)._1
-  }
-}
-
-case class PollBuilder(name: String,
-                       stage: Int = 0,
-                       time: String = "",
-                       users: List[Long] = List.empty,
-                       places: List[String] = List.empty)
-
 trait CLPBot extends GlobalExecutionContext
   with Declarative
   with Commands {
@@ -73,12 +44,18 @@ trait CLPBot extends GlobalExecutionContext
           .map(u => userStorage.find(u))
           .flatMap {
             case Some(value) => Some(value)
-            case None => reply(s"У пользователя нет диаалога с ботом")(message); None
+            case None => reply(s"У пользователя нет диалога с ботом")(message); None
           }
 
-        val result = b.copy(stage = b.stage + 1, users = users)
-        request(SendMessage(message.source, "Введите название кафе:"))
-        result
+        if (users.isEmpty) {
+          reply("Введите хотя бы одно имя пользователя:")(message)
+          b
+        }
+        else {
+          val result = b.copy(stage = b.stage + 1, participants = users)
+          reply("Введите название кафе:")(message)
+          result
+        }
       }
   }
 
@@ -130,7 +107,7 @@ trait CLPBot extends GlobalExecutionContext
     }
 
     reply(
-      s"""Generates ${"Let me \uD83C\uDDECoogle that for you!".italic} links.
+      s"""Выбор места для обеда.
          |
              |/start - list commands
          |
@@ -146,12 +123,13 @@ trait CLPBot extends GlobalExecutionContext
   onCommand('newpoll) { implicit msg =>
     withArgs {
       case args if args.length == 1 =>
-        pollBuilderStorage.put(msg.source, PollBuilder(args.head))
+        using(_.from.flatMap(u => u.username)) { username =>
+          pollBuilderStorage.put(msg.source, PollBuilder(msg.source, username, args.head))
+          reply("Введите логины тех с кем вы хотите пойти:")
+        }
       case _ =>
         reply("недопустимый аргумент: название опроса")
     }
-
-    reply("Введите логины тех с кем вы хотите пойти:")
   }
 
   onCommand('endpoll) { implicit msg =>
@@ -215,15 +193,13 @@ trait CLPBot extends GlobalExecutionContext
     }.getOrElse(None) match {
       case Some(value) =>
         if (value.sendPoll) {
-          val form = pollBuilderStorage.find(value.authorId)
-
-          if (form.isDefined) {
-            val poll = Poll(value.authorId, callbackQuery.from.username.get, form.get.name,
-              Map(form.get.users.map { u => u -> false }: _*),
-              Map(form.get.places.map { u => u -> 0 }: _*))
-
-            pollStorage.put(value.authorId, poll)
-            sendPoll(poll)
+          pollBuilderStorage.find(value.authorId) match {
+            case Some(builder) =>
+              val poll = Poll.makePoll(builder)
+              pollStorage.put(value.authorId, poll)
+              pollBuilderStorage.remove(value.authorId)
+              sendPoll(poll)
+            case None => ()
           }
         }
       case None => ()
