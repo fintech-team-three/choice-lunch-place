@@ -52,6 +52,10 @@ case class ApiPlaceUrl(path: String,
   }
 }
 
+sealed trait Result[+T]
+final case class Success[T](result: T) extends Result[T]
+final case class Error[T](message: String) extends Result[T]
+
 //https://tech.yandex.ru/maps/doc/geosearch/concepts/request-docpage/
 class PlacesApi(apiKey: String) {
   private val searchPath = "https://search-maps.yandex.ru/v1/"
@@ -60,7 +64,7 @@ class PlacesApi(apiKey: String) {
   implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global
 
-  private def getCafesByUrl(url: ApiPlaceUrl): Future[List[Cafe]] = {
+  private def getCafesByUrl(url: ApiPlaceUrl): Future[Result[List[Cafe]]] = {
     makeRequest(url).flatMap {
         case response@HttpResponse(StatusCodes.OK, headers, entity, _) =>
           entity.dataBytes.runFold(ByteString(""))(_ ++ _).flatMap { body =>
@@ -68,31 +72,31 @@ class PlacesApi(apiKey: String) {
               val jsn = parse(body.utf8String).getOrElse(Json.Null)
               println("Got response, body: " + body.utf8String)
               jsn.as[List[Cafe]] match {
-                case Left(err) => println(err); List.empty[Cafe]
-                case Right(value) => value
+                case Left(err) => Error(err.toString())
+                case Right(value) => Success(value)
               }
             }
           }
         case response@HttpResponse(code, _, _, _) =>
           println("Request failed, response code: " + code)
-          Future(List.empty[Cafe])
+          Future(Error("Request failed, response code: " + code))
       }
   }
   private def makeRequest(url: ApiPlaceUrl): Future[HttpResponse] =
     Http().singleRequest(HttpRequest(uri = url.getUri))
 
   def searchCafeInArea(cuisine: String, coordinates: (Double, Double), sizeArea: (Double, Double),
-                       lang: Language = Language.ru_RU, numEntries: Int = 10): Future[List[Cafe]] =
+                       lang: Language = Language.ru_RU, numEntries: Int = 10): Future[Result[List[Cafe]]] =
     getCafesByUrl(ApiPlaceUrl(searchPath, apiKey, cuisine, lang,
       Some(TypeRes.biz), Some(coordinates), Some(sizeArea), numResults = numEntries))
 
   def searchCafeInCity(cuisine: String, city: String, lang: Language = Language.ru_RU,
-                       numEntries: Int = 10): Future[List[Cafe]] =
+                       numEntries: Int = 10): Future[Result[List[Cafe]]] =
     getCafesByUrl(ApiPlaceUrl(searchPath, apiKey, s"$cuisine $city", lang,
       Some(TypeRes.biz), numResults = numEntries))
 
   def searchCafeByCoords(cuisine: String, coordinates: (Double, Double),
-                         lang: Language = Language.ru_RU, numEntries: Int = 10): Future[List[Cafe]] =
+                         lang: Language = Language.ru_RU, numEntries: Int = 10): Future[Result[List[Cafe]]] =
     getCafesByUrl(ApiPlaceUrl(searchPath, apiKey, cuisine, lang, Some(TypeRes.biz),
       Some(coordinates), numResults = numEntries))
 }
