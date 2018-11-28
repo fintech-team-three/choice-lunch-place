@@ -1,22 +1,18 @@
 package teamthree.clp.bot
 
 import com.bot4s.telegram.Implicits._
+import com.bot4s.telegram.api._
 import com.bot4s.telegram.api.declarative.{Commands, Declarative}
-import com.bot4s.telegram.api.{Polling, RequestHandler, TelegramBot, declarative}
-import com.bot4s.telegram.clients.SttpClient
 import com.bot4s.telegram.methods.{ParseMode, SendMessage}
 import com.bot4s.telegram.models._
-import com.softwaremill.sttp.SttpBackend
-import com.softwaremill.sttp.okhttp.OkHttpFutureBackend
 import org.json4s.DefaultFormats
 import org.json4s.jackson.Serialization.{read, write}
-import slogging.{LogLevel, LoggerConfig, PrintLoggerFactory}
 
 import scala.collection.mutable
-import scala.concurrent.Future
+import scala.io.Source
 import scala.util.Try
 
-case class ApplyPoll(authorId: Long, sendSurvey: Boolean)
+case class ApplyPoll(authorId: Long, sendPoll: Boolean)
 
 case class PollItem(authorId: Long, value: String)
 
@@ -49,41 +45,20 @@ case class PollBuilder(name: String,
                        users: List[Long] = List.empty,
                        places: List[String] = List.empty)
 
-abstract class BaseBot(val token: String) extends TelegramBot {
-  LoggerConfig.factory = PrintLoggerFactory()
-  LoggerConfig.level = LogLevel.TRACE
-
-  implicit val backend: SttpBackend[Future, Nothing] = OkHttpFutureBackend()
-  override val client: RequestHandler = new SttpClient(token)
-
-  val userStorage: Storage[String, Long] = InMemoryStorage[String, Long]()
-  val pollStorage: Storage[Long, Poll] = InMemoryStorage[Long, Poll]()
-  val pollBuilderStorage: Storage[Long, PollBuilder] = InMemoryStorage[Long, PollBuilder]()
-
-  val stages: mutable.MutableList[(PollBuilder, Message) => PollBuilder] = mutable.MutableList[(PollBuilder, Message) => PollBuilder]()
-}
-
-class CLPBot(token: String) extends BaseBot(token)
-  with Polling
+trait CLPBot extends GlobalExecutionContext
   with Declarative
   with Commands {
 
+  lazy val token: String = scala.util.Properties.envOrNone("BOT_TOKEN")
+    .getOrElse(Source.fromFile("bot.token").getLines().mkString)
+
   implicit val formats: DefaultFormats.type = DefaultFormats
 
-  //  stages += {
-  //    (b: PollBuilder, message: Message) =>
-  //      message.text match {
-  //        case Some(value) =>
-  //          val result = b.copy(stage = b.stage + 1, time = value)
-  //          request(SendMessage(message.source, "Введите логины тех с кем вы хотите пойти:"))
-  //          result
-  //        case None => b
-  //      }
-  //  }
+  private val userStorage = InMemoryStorage[String, Long]()
+  private val pollStorage = InMemoryStorage[Long, Poll]()
+  private val pollBuilderStorage = InMemoryStorage[Long, PollBuilder]()
 
-  def makeInlineButton[T <: AnyRef](text: String, obj: T): InlineKeyboardButton = {
-    InlineKeyboardButton.callbackData(text, write[T](obj))
-  }
+  private val stages = mutable.MutableList[(PollBuilder, Message) => PollBuilder]()
 
   stages += {
     (b: PollBuilder, message: Message) =>
@@ -112,12 +87,16 @@ class CLPBot(token: String) extends BaseBot(token)
     val result = b.copy(stage = b.stage + 1, places = message.text.get.split(',').toList)
 
     val m = InlineKeyboardMarkup.singleRow(Seq(
-      makeInlineButton("Отправить", ApplyPoll(message.source, sendSurvey = true)),
-      makeInlineButton("Отменить", ApplyPoll(message.source, sendSurvey = false))
+      makeInlineButton("Отправить", ApplyPoll(message.source, sendPoll = true)),
+      makeInlineButton("Отменить", ApplyPoll(message.source, sendPoll = false))
     ))
 
     request(SendMessage(message.source, "Отправить опрос?", replyMarkup = m))
     result
+  }
+
+  def makeInlineButton[T <: AnyRef](text: String, obj: T): InlineKeyboardButton = {
+    InlineKeyboardButton.callbackData(text, write[T](obj))
   }
 
   def updateStage(message: Message) {
@@ -155,9 +134,9 @@ class CLPBot(token: String) extends BaseBot(token)
          |
              |/start - list commands
          |
-             |/newpoll - новый опрос
+             |/newpoll [pollname]- новый опрос
          |
-             |/status - статус опроса
+             |/status [pollname] - статус опроса
          |
              |@Bot args - Inline mode
           """.stripMargin,
@@ -165,7 +144,6 @@ class CLPBot(token: String) extends BaseBot(token)
   }
 
   onCommand('newpoll) { implicit msg =>
-
     withArgs {
       case args if args.length == 1 =>
         pollBuilderStorage.put(msg.source, PollBuilder(args.head))
@@ -177,19 +155,25 @@ class CLPBot(token: String) extends BaseBot(token)
   }
 
   onCommand('endpoll) { implicit msg =>
+    withArgs {
+      case args if args.length == 1 =>
 
-    pollStorage.find(msg.source) match {
-      case Some(poll) =>
-        val replyString = "В результате голосования выбрано: " + Poll.getResult(poll)
+        pollStorage.find(msg.source) match {
+          case Some(poll) =>
+            val replyString = "В результате голосования выбрано: " + Poll.getResult(poll)
 
-        reply(replyString)
+            reply(replyString)
 
-        for {
-          p <- poll.participants.keys
-          message <- SendMessage(p, replyString)
-        } yield request(message)
+            for {
+              p <- poll.participants.keys
+              message <- SendMessage(p, replyString)
+            } yield request(message)
 
-      case None => reply("Сначала создайте опрос")
+          case None => reply("Сначала создайте опрос")
+        }
+
+      case _ =>
+        reply("недопустимый аргумент: название опроса")
     }
   }
 
@@ -198,11 +182,18 @@ class CLPBot(token: String) extends BaseBot(token)
   }
 
   onCommand('status) { implicit msg =>
-    pollStorage.find(msg.source) match {
-      case Some(value) =>
-        reply("Результаты \"" + value.name + "\" :\n" + value.places.map(p => p._1 + ": " + p._2).mkString("\n"))
+    withArgs {
+      case args if args.length == 1 =>
 
-      case None => reply("Сначала создайте опрос")
+        pollStorage.find(msg.source) match {
+          case Some(value) =>
+            reply("Результаты \"" + value.name + "\" :\n" + value.places.map(p => p._1 + ": " + p._2).mkString("\n"))
+
+          case None => reply("Сначала создайте опрос")
+        }
+
+      case _ =>
+        reply("недопустимый аргумент: название опроса")
     }
   }
 
@@ -214,18 +205,21 @@ class CLPBot(token: String) extends BaseBot(token)
       updateStage(msg)
   }
 
+  /*
+   Получение ответов от кнопок
+    */
   override def receiveCallbackQuery(callbackQuery: CallbackQuery): Unit = {
 
     Try {
       callbackQuery.data.map(read[ApplyPoll])
     }.getOrElse(None) match {
       case Some(value) =>
-        if (value.sendSurvey) {
+        if (value.sendPoll) {
           val form = pollBuilderStorage.find(value.authorId)
 
           if (form.isDefined) {
-
-            val poll = Poll(value.authorId, callbackQuery.from.username.get, form.get.name, Map(form.get.users.map { u => u -> false }: _*),
+            val poll = Poll(value.authorId, callbackQuery.from.username.get, form.get.name,
+              Map(form.get.users.map { u => u -> false }: _*),
               Map(form.get.places.map { u => u -> 0 }: _*))
 
             pollStorage.put(value.authorId, poll)
@@ -247,4 +241,3 @@ class CLPBot(token: String) extends BaseBot(token)
     }
   }
 }
-
