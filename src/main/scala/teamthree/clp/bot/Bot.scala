@@ -5,12 +5,13 @@ import com.bot4s.telegram.api._
 import com.bot4s.telegram.api.declarative.{Commands, Declarative}
 import com.bot4s.telegram.methods.{ParseMode, SendMessage}
 import com.bot4s.telegram.models._
-import org.json4s.DefaultFormats
-import org.json4s.jackson.Serialization.{read, write}
+import io.circe.Json
+import io.circe.generic.auto._
+import io.circe.parser._
+import io.circe.syntax._
 
 import scala.collection.mutable
 import scala.io.Source
-import scala.util.Try
 
 case class ApplyPoll(authorId: Long, sendPoll: Boolean)
 
@@ -22,8 +23,6 @@ trait CLPBot extends GlobalExecutionContext
 
   lazy val token: String = scala.util.Properties.envOrNone("BOT_TOKEN")
     .getOrElse(Source.fromFile("bot.token").getLines().mkString)
-
-  implicit val formats: DefaultFormats.type = DefaultFormats
 
   private val userStorage = InMemoryStorage[String, Long]()
   private val pollStorage = InMemoryStorage[Long, Poll]()
@@ -73,7 +72,7 @@ trait CLPBot extends GlobalExecutionContext
   }
 
   def makeInlineButton[T <: AnyRef](text: String, obj: T): InlineKeyboardButton = {
-    InlineKeyboardButton.callbackData(text, write[T](obj))
+    InlineKeyboardButton.callbackData(text, obj.asJson.spaces2)
   }
 
   def updateStage(message: Message) {
@@ -188,10 +187,10 @@ trait CLPBot extends GlobalExecutionContext
     */
   override def receiveCallbackQuery(callbackQuery: CallbackQuery): Unit = {
 
-    Try {
-      callbackQuery.data.map(read[ApplyPoll])
-    }.getOrElse(None) match {
-      case Some(value) =>
+    val json = callbackQuery.data.flatMap(parse).getOrElse(Json.Null)
+
+    json match {
+      case Right(value: ApplyPoll) =>
         if (value.sendPoll) {
           pollBuilderStorage.find(value.authorId) match {
             case Some(builder) =>
@@ -202,18 +201,16 @@ trait CLPBot extends GlobalExecutionContext
             case None => ()
           }
         }
-      case None => ()
+      case Left(_) => ()
     }
 
-    Try {
-      callbackQuery.data.map(read[PollItem])
-    }.getOrElse(None) match {
-      case Some(value) => ()
+    json match {
+      case Right(value: PollItem) =>
         pollStorage.findAndUpdate(value.authorId) { poll =>
           request(SendMessage(callbackQuery.from.id.toLong, "Ваш голос засчитан"))
           Poll.vote(poll, value, callbackQuery.from.id.toLong)
         }
-      case None => ()
+      case Left(_) => ()
     }
   }
 }
