@@ -6,10 +6,9 @@ import com.bot4s.telegram.api.declarative.{Commands, Declarative}
 import com.bot4s.telegram.methods.{ParseMode, SendMessage}
 import com.bot4s.telegram.models._
 import io.circe.Json
-import io.circe.generic.auto._
 import io.circe.parser._
 import io.circe.syntax._
-
+import io.circe.generic.auto._
 import scala.collection.mutable
 import scala.io.Source
 
@@ -63,16 +62,16 @@ trait CLPBot extends GlobalExecutionContext
     val result = b.copy(stage = b.stage + 1, places = message.text.get.split(',').toList)
 
     val m = InlineKeyboardMarkup.singleRow(Seq(
-      makeInlineButton("Отправить", ApplyPoll(message.source, sendPoll = true)),
-      makeInlineButton("Отменить", ApplyPoll(message.source, sendPoll = false))
+      makeInlineButton("Отправить", ApplyPoll(message.source, sendPoll = true).asJson.spaces2),
+      makeInlineButton("Отменить", ApplyPoll(message.source, sendPoll = false).asJson.spaces2)
     ))
 
     request(SendMessage(message.source, "Отправить опрос?", replyMarkup = m))
     result
   }
 
-  def makeInlineButton[T <: AnyRef](text: String, obj: T): InlineKeyboardButton = {
-    InlineKeyboardButton.callbackData(text, obj.asJson.spaces2)
+  def makeInlineButton[T](text: String, obj: String): InlineKeyboardButton = {
+    InlineKeyboardButton.callbackData(text, obj)
   }
 
   def updateStage(message: Message) {
@@ -84,7 +83,7 @@ trait CLPBot extends GlobalExecutionContext
   def sendPoll(poll: Poll): Unit = {
 
     val buttons = poll.places.keys
-      .map { place => makeInlineButton(place, PollItem(poll.authorId, place)) }
+      .map { place => makeInlineButton(place, PollItem(poll.authorId, place).asJson.spaces2) }
       .toSeq
 
     val m = InlineKeyboardMarkup.singleColumn(buttons)
