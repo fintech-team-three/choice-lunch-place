@@ -4,17 +4,138 @@ import com.bot4s.telegram.Implicits._
 import com.bot4s.telegram.api._
 import com.bot4s.telegram.api.declarative.{Commands, Declarative}
 import com.bot4s.telegram.methods.{ParseMode, SendMessage}
-import com.bot4s.telegram.models._
+import com.bot4s.telegram.models.{InlineKeyboardButton, _}
 import io.circe.Json
+import io.circe.generic.auto._
 import io.circe.parser._
 import io.circe.syntax._
-import io.circe.generic.auto._
+
 import scala.collection.mutable
 import scala.io.Source
 
 case class ApplyPoll(authorId: Long, sendPoll: Boolean)
 
 case class PollItem(authorId: Long, value: String)
+
+case class NUser(id: Long, username: String, pollAuthor: Long = NUser.NOT_IN_POLL)
+
+object NUser {
+  val NOT_IN_POLL: Long = -1L
+}
+
+trait Storages {
+  val userStorage = NInMemoryStorage()
+}
+
+
+object Messages {
+  val PLEASE_SEND_START_COMMAND = "Пожалуйста отправьте команду /start для инициализации бота."
+}
+
+trait NBot extends GlobalExecutionContext
+  with Declarative
+  with Commands
+  with Storages {
+
+  import declarative.when
+
+  lazy val token: String = scala.util.Properties.envOrNone("BOT_TOKEN")
+    .getOrElse(Source.fromFile("bot.token").getLines().mkString)
+
+  private val pollBuilderStorage = InMemoryStorage[User, PollBuilder]()
+
+  private val pollStorage = InMemoryStorage[Long, BasePoll]()
+
+  onCommand('start) { implicit msg =>
+    msg.from.flatMap { u => u.username } match {
+      case Some(username) =>
+        userStorage.put(NUser(msg.source, "@" + username))
+
+        reply(
+          s"""Выбор места для обеда.
+             |
+             |/start - list commands
+             |
+             |/newpoll - новый опрос
+             |
+             |/newsimplepoll - новый опрос
+             |
+             |/status - статус опроса
+             |
+             |@Bot args - Inline mode
+          """.stripMargin,
+          parseMode = ParseMode.Markdown)
+
+      case None =>
+        reply("Для корректной работы пожалуйста добавьте имя пользователя(username)")
+    }
+  }
+
+  onCommand('newpoll) { implicit msg =>
+    userStorage.find(msg.source) match {
+      case Some(user) =>
+
+        if (user.pollAuthor == NUser.NOT_IN_POLL)
+          reply("Одновременно допускается только один опрос.")
+        else {
+          val poll = CuisinePoll(this, user)
+          pollStorage.put(user.id, poll)
+          userStorage.map(user.id) { u => u.copy(pollAuthor = u.id) }
+
+          sendMessages(poll.nextStage(msg.source, msg.text.get))
+        }
+      case None =>
+    }
+  }
+
+  onCommand('newsimplepoll) { implicit msg =>
+    userStorage.find(msg.source) match {
+      case Some(user) =>
+
+        if (user.pollAuthor == NUser.NOT_IN_POLL)
+          reply("Одновременно допускается только один опрос.")
+        else {
+          val poll = SimplePoll(this, user)
+          pollStorage.put(user.id, poll)
+          userStorage.map(user.id) { u => u.copy(pollAuthor = u.id) }
+
+          sendMessages(poll.nextStage(msg.source, msg.text.get))
+        }
+      case None =>
+    }
+  }
+
+  def sendMessages(messages: Seq[SendMessage]): Unit = {
+    messages.foreach { sm => request(sm) }
+  }
+
+  def notACommand(msg: Message): Boolean =
+    msg.text.exists(m => !m.startsWith("/"))
+
+  when(onMessage, notACommand) { implicit msg =>
+    userStorage.find(msg.source) match {
+      case Some(user) =>
+        pollStorage.find(user.pollAuthor) match {
+          case Some(npoll) =>
+            sendMessages(npoll.nextStage(msg.source, msg.text.get))
+          case None => ()
+        }
+      case None => ()
+    }
+  }
+
+  override def receiveCallbackQuery(callbackQuery: CallbackQuery): Unit = {
+    userStorage.find(callbackQuery.from.id.toLong) match {
+      case Some(user) =>
+        pollStorage.find(user.pollAuthor) match {
+          case Some(npoll) =>
+            sendMessages(npoll.nextStage(callbackQuery.from.id.toLong, callbackQuery.data.get))
+          case None => ()
+        }
+      case None => ()
+    }
+  }
+}
 
 trait CLPBot extends GlobalExecutionContext
   with Declarative

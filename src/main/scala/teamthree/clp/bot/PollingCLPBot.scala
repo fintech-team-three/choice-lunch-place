@@ -8,7 +8,7 @@ import slogging.{LogLevel, LoggerConfig, PrintLoggerFactory}
 
 import scala.concurrent.Future
 
-class PollingCLPBot extends CLPBot
+class PollingCLPBot extends NBot
   with TelegramBot
   with Polling {
 
