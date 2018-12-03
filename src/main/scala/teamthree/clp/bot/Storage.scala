@@ -40,22 +40,22 @@ case class InMemoryStorage[K, V]() extends Storage[K, V] {
   override def contains(id: K): Boolean = storage.contains(id)
 }
 
-case class NInMemoryStorage() {
-  private var users = Set[NUser]()
+case class InMemeoryUserBotStorage() {
+  private var users = Set[BotUser]()
 
-  def put(user: NUser): Unit = {
+  def put(user: BotUser): Unit = {
     users =  users + user
   }
 
-  def find(id: Long): Option[NUser] = {
+  def find(id: Long): Option[BotUser] = {
     users.find { u => u.id == id }
   }
 
-  def find(username: String): Option[NUser] = {
+  def find(username: String): Option[BotUser] = {
     users.find{ u => u.username == username }
   }
 
-  def map(id: Long)(mapper: NUser => NUser): Unit = {
+  def map(id: Long)(mapper: BotUser => BotUser): Unit = {
     users = users.map { u =>
       if (u.id == id)
         mapper(u)

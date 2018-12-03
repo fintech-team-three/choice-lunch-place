@@ -13,14 +13,14 @@ case class ApplyPoll(authorId: Long, sendPoll: Boolean)
 
 case class PollItem(authorId: Long, value: String)
 
-case class NUser(id: Long, username: String, pollAuthor: Long = NUser.NOT_IN_POLL)
+case class BotUser(id: Long, username: String, pollAuthor: Long = BotUser.NOT_IN_POLL)
 
-object NUser {
+object BotUser {
   val NOT_IN_POLL: Long = -1L
 }
 
 trait Storages {
-  val userStorage = NInMemoryStorage()
+  val userStorage = InMemeoryUserBotStorage()
 }
 
 
@@ -46,7 +46,7 @@ object BotMessages {
           """.stripMargin
 }
 
-trait NBot extends GlobalExecutionContext
+trait CLPBot extends GlobalExecutionContext
   with Declarative
   with Commands
   with Storages {
@@ -61,7 +61,7 @@ trait NBot extends GlobalExecutionContext
   onCommand('start) { implicit msg =>
     msg.from.flatMap { u => u.username } match {
       case Some(username) =>
-        userStorage.put(NUser(msg.source, "@" + username))
+        userStorage.put(BotUser(msg.source, "@" + username))
         reply(BotMessages.START_AND_HELP, parseMode = ParseMode.Markdown)
       case None =>
         reply(BotMessages.PLEASE_ADD_USERNAME)
@@ -97,10 +97,10 @@ trait NBot extends GlobalExecutionContext
     updatePoll(callbackQuery.from.id, callbackQuery.data.get)
   }
 
-  def createPoll(from: Long, message: String)(creator: NUser => BasePoll): Unit = {
+  def createPoll(from: Long, message: String)(creator: BotUser => BasePoll): Unit = {
     userStorage.find(from) match {
       case Some(user) =>
-        if (user.pollAuthor != NUser.NOT_IN_POLL)
+        if (user.pollAuthor != BotUser.NOT_IN_POLL)
           request(SendMessage(from, BotMessages.ONLY_ONE_POLL_AT_TIME))
         else {
           val poll = creator(user)

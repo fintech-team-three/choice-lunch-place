@@ -4,17 +4,17 @@ import com.bot4s.telegram.methods.SendMessage
 import com.bot4s.telegram.models.{InlineKeyboardButton, InlineKeyboardMarkup}
 import io.circe.generic.auto._
 import io.circe.syntax._
-import teamthree.clp.bot.{ApplyPoll, NUser, Storages, Vote}
+import teamthree.clp.bot.{ApplyPoll, BotUser, Storages, Vote}
 
 import scala.collection.mutable
 
-abstract class BasePoll(val author: NUser, val storages: Storages) {
+abstract class BasePoll(val author: BotUser, val storages: Storages) {
   type Action = (Long, String) => Seq[SendMessage]
 
   private var stage = 0
 
   private val stages = mutable.MutableList[Action]()
-  private val participants = mutable.Map.empty[NUser, Boolean]
+  private val participants = mutable.Map.empty[BotUser, Boolean]
 
   //TODO Понять что делать с этим
   protected var allowUpdateStage = true
@@ -33,8 +33,8 @@ abstract class BasePoll(val author: NUser, val storages: Storages) {
     else {
       users.flatMap { u =>
         storages.userStorage.find(u) match {
-          case Some(user: NUser) =>
-            if (user.pollAuthor == NUser.NOT_IN_POLL) {
+          case Some(user: BotUser) =>
+            if (user.pollAuthor == BotUser.NOT_IN_POLL) {
               addParticipant(user)
               None
             } else {
@@ -46,7 +46,7 @@ abstract class BasePoll(val author: NUser, val storages: Storages) {
     }
   }
 
-  protected def addParticipant(user: NUser): Unit = {
+  protected def addParticipant(user: BotUser): Unit = {
     participants += user -> false
     storages.userStorage.map(user.id) { u => u.copy(pollAuthor = author.id) }
   }
@@ -54,7 +54,7 @@ abstract class BasePoll(val author: NUser, val storages: Storages) {
   def cancelPoll(): Seq[SendMessage] = {
     val messages = onCancelPoll()
     participants.keys.foreach { user =>
-      storages.userStorage.map(user.id) { u => u.copy(pollAuthor = NUser.NOT_IN_POLL) }
+      storages.userStorage.map(user.id) { u => u.copy(pollAuthor = BotUser.NOT_IN_POLL) }
     }
 
     messages
@@ -72,7 +72,7 @@ abstract class BasePoll(val author: NUser, val storages: Storages) {
     messages
   }
 
-  def sendToParticipants(fun: NUser => SendMessage): Seq[SendMessage] = {
+  def sendToParticipants(fun: BotUser => SendMessage): Seq[SendMessage] = {
     participants.keys
       .map { user => fun(user) }
       .toSeq
@@ -88,7 +88,7 @@ abstract class BasePoll(val author: NUser, val storages: Storages) {
 
   def vote(from: Long, element: String, vote: Vote): Seq[SendMessage] = {
     val messages = participants.filter(u => u._1.id == from).map {
-      case (u: NUser, isVote: Boolean) =>
+      case (u: BotUser, isVote: Boolean) =>
         if (isVote)
           SendMessage(u.id, "Вы уже голосовали")
         else {

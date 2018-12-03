@@ -8,7 +8,7 @@ import io.circe.parser._
 import io.circe.syntax._
 import teamthree.clp.bot._
 
-case class SimplePoll(a: NUser, s: Storages) extends BasePoll(a, s) {
+case class SimplePoll(a: BotUser, s: Storages) extends BasePoll(a, s) {
 
   private var placeVote: Vote = Vote()
 
