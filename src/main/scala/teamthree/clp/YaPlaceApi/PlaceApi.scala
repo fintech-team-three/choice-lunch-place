@@ -32,22 +32,19 @@ case class ApiPlaceUrl(path: String,
     query += ("text" -> text)
     query += ("lang" -> lang.toString)
     query += ("results" -> numResults.toString)
-    typeRes match {
-      case Some(value) => query += ("type" -> value.toString)
-      case None =>
+
+    typeRes.foreach(value => query += ("type" -> value.toString))
+
+    centerSearch.foreach { case (x, y) =>
+      query += ("ll" -> s"$x,$y")
     }
-    centerSearch match {
-      case Some(value) => query += ("ll" -> s"${value._1},${value._2}")
-      case None =>
+
+    sizeAreaSearch.foreach { case (width, height) =>
+      query += ("spn" -> s"$width,$height")
     }
-    sizeAreaSearch match {
-      case Some(value) => query += ("spn" -> s"${value._1},${value._2}")
-      case None =>
-    }
-    searchOutside match {
-      case Some(_) => query += ("rspn" -> "1")
-      case None =>
-    }
+
+    searchOutside.foreach(_ => query += ("rspn" -> "1"))
+
     Uri(path).withQuery(query.result())
   }
 }
@@ -66,37 +63,45 @@ class PlacesApi(apiKey: String) {
 
   private def getCafesByUrl(url: ApiPlaceUrl): Future[Result[List[Cafe]]] = {
     makeRequest(url).flatMap {
-        case response@HttpResponse(StatusCodes.OK, headers, entity, _) =>
-          entity.dataBytes.runFold(ByteString(""))(_ ++ _).flatMap { body =>
-            Future {
-              val jsn = parse(body.utf8String).getOrElse(Json.Null)
-              println("Got response, body: " + body.utf8String)
-              jsn.as[List[Cafe]] match {
-                case Left(err) => Error(err.toString())
-                case Right(value) => Success(value)
-              }
+      case HttpResponse(StatusCodes.OK, _, entity, _) =>
+        entity.dataBytes.runFold(ByteString(""))(_ ++ _).flatMap { body =>
+          Future {
+            val jsn = parse(body.utf8String).getOrElse(Json.Null)
+            println("Got response, body: " + body.utf8String)
+            jsn.as[List[Cafe]] match {
+              case Left(err) => Error(err.toString())
+              case Right(value) => Success(value)
             }
           }
-        case response@HttpResponse(code, _, _, _) =>
-          println("Request failed, response code: " + code)
-          Future(Error("Request failed, response code: " + code))
-      }
+        }
+      case HttpResponse(code, _, _, _) =>
+        println("Request failed, response code: " + code)
+        Future(Error("Request failed, response code: " + code))
+    }
   }
+
   private def makeRequest(url: ApiPlaceUrl): Future[HttpResponse] =
     Http().singleRequest(HttpRequest(uri = url.getUri))
 
-  def searchCafeInArea(cuisine: String, coordinates: (Double, Double), sizeArea: (Double, Double),
-                       lang: Language = Language.ru_RU, numEntries: Int = 10): Future[Result[List[Cafe]]] =
+  def searchCafeInArea(cuisine: String,
+                       coordinates: (Double, Double),
+                       sizeArea: (Double, Double),
+                       lang: Language = Language.ru_RU,
+                       numEntries: Int = 10): Future[Result[List[Cafe]]] =
     getCafesByUrl(ApiPlaceUrl(searchPath, apiKey, cuisine, lang,
       Some(TypeRes.biz), Some(coordinates), Some(sizeArea), numResults = numEntries))
 
-  def searchCafeInCity(cuisine: String, city: String, lang: Language = Language.ru_RU,
+  def searchCafeInCity(cuisine: String,
+                       city: String,
+                       lang: Language = Language.ru_RU,
                        numEntries: Int = 10): Future[Result[List[Cafe]]] =
     getCafesByUrl(ApiPlaceUrl(searchPath, apiKey, s"$cuisine $city", lang,
       Some(TypeRes.biz), numResults = numEntries))
 
-  def searchCafeByCoords(cuisine: String, coordinates: (Double, Double),
-                         lang: Language = Language.ru_RU, numEntries: Int = 10): Future[Result[List[Cafe]]] =
+  def searchCafeByCoords(cuisine: String,
+                         coordinates: (Double, Double),
+                         lang: Language = Language.ru_RU,
+                         numEntries: Int = 10): Future[Result[List[Cafe]]] =
     getCafesByUrl(ApiPlaceUrl(searchPath, apiKey, cuisine, lang, Some(TypeRes.biz),
       Some(coordinates), numResults = numEntries))
 }
