@@ -103,7 +103,7 @@ class PlacesApi(apiKey: String) {
 
 object PlaceApiExample extends App {
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-  val apiKey = "a952f905-e84c-4549-a35c-5f273adbc857"
+  val apiKey = ""
   val placesApi = new PlacesApi(apiKey)
 
   val res1 = placesApi.searchCafeByCoords("кавказская кухня", (37.0, 55.43644829))
