@@ -1,7 +1,5 @@
 package teamthree.clp.bot
 
-import scala.collection.mutable
-
 trait Storage[K, V] {
   def put(id: K, poll: V)
 
@@ -43,10 +41,10 @@ case class InMemoryStorage[K, V]() extends Storage[K, V] {
 }
 
 case class NInMemoryStorage() {
-  private val users = mutable.MutableList[NUser]()
+  private var users = Set[NUser]()
 
   def put(user: NUser): Unit = {
-    users += user
+    users =  users + user
   }
 
   def find(id: Long): Option[NUser] = {
@@ -54,10 +52,15 @@ case class NInMemoryStorage() {
   }
 
   def find(username: String): Option[NUser] = {
-    users.find { u => u.username == username }
+    users.find{ u => u.username == username }
   }
 
   def map(id: Long)(mapper: NUser => NUser): Unit = {
-    users.find { u => u.id == id }.map(mapper)
+    users = users.map { u =>
+      if (u.id == id)
+        mapper(u)
+      else
+        u
+    }
   }
 }
