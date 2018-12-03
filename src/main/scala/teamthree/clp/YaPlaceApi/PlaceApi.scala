@@ -103,8 +103,14 @@ class PlacesApi(apiKey: String) {
 
 object PlaceApiExample extends App {
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-  val apiKey = ""
-  val placesApi = new PlacesApi(apiKey)
+  val apiKey = scala.util.Properties.envOrNone("YANDEX_TOKEN")
+  val placesApi = apiKey match {
+    case Some(key) =>
+      new PlacesApi(key)
+    case None =>
+      println("Fatal error: could not get token for Yandex Places API.")
+      sys.exit()
+  }
 
   val res1 = placesApi.searchCafeByCoords("кавказская кухня", (37.0, 55.43644829))
   val res2 = placesApi.searchCafeInCity("французская кухня", "Екатеринбург")
