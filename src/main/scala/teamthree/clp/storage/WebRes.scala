@@ -1,6 +1,5 @@
 package teamthree.clp.storage
 
-
 import teamthree.clp.YaPlaceApi._
 import teamthree.clp.YaPlaceApi.model.ApiModels.Cafe
 
@@ -29,29 +28,32 @@ case class WebRes[A](run: PlacesApi => A) {
 object WebRes {
   def getCafeInCity(food: String, city:String): WebRes[List[Cafe]] = WebRes { p =>
     implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-    val res = p.searchCafeInCity(food, city)
-    val data = Await.ready(res, 3 seconds)
-    data match {
-      case d:List[Cafe] => d
+    val res = p.searchCafeInCity(food, city).map {
+      case Success(v) => v
+      case Error(e) => List.empty[Cafe]
     }
+    val data = Await.result(res, 3 seconds)
+    data
   }
 
   def getCafeByCoords(food: String, coords:(Double, Double)): WebRes[List[Cafe]] = WebRes { p =>
     implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-    val res = p.searchCafeByCoords(food, coords)
-    val data = Await.ready(res, 3 seconds)
-    data match {
-      case d:List[Cafe] => d
+    val res = p.searchCafeByCoords(food, coords).map {
+      case Success(v) => v
+      case Error(e) => List.empty[Cafe]
     }
+    val data = Await.result(res, 3 seconds)
+    data
   }
 
   def getCafeInArea(food: String, coords:(Double, Double), sizeArea: (Double, Double)): WebRes[List[Cafe]] = WebRes { p =>
     implicit val ec: ExecutionContextExecutor = ExecutionContext.global
-    val res = p.searchCafeInArea(food, coords, sizeArea)
-    val data = Await.ready(res, 3 seconds)
-    data match {
-      case d:List[Cafe] => d
+    val res = p.searchCafeInArea(food, coords, sizeArea).map {
+      case Success(v) => v
+      case Error(e) => List.empty[Cafe]
     }
+    val data = Await.result(res, 3 seconds)
+    data
   }
 
 }
