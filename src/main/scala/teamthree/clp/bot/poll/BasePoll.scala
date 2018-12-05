@@ -4,12 +4,12 @@ import com.bot4s.telegram.methods.SendMessage
 import com.bot4s.telegram.models.{InlineKeyboardButton, InlineKeyboardMarkup}
 import io.circe.generic.auto._
 import io.circe.syntax._
-import teamthree.clp.bot.{ApplyPoll, BotUser, Storages, Vote}
+import teamthree.clp.bot._
 
 import scala.collection.mutable
 
 abstract class BasePoll(val author: BotUser, val storages: Storages) {
-  type Action = (Long, String) => Seq[SendMessage]
+  type Action = InputMessage => Seq[SendMessage]
 
   private var stage = 0
 
@@ -60,9 +60,9 @@ abstract class BasePoll(val author: BotUser, val storages: Storages) {
     messages
   }
 
-  def nextStage(from: Long, message: String): Seq[SendMessage] = {
+  def nextStage(message: InputMessage): Seq[SendMessage] = {
     //TODO Проверка на окончание опроса
-    val messages = stages(stage)(from, message)
+    val messages = stages(stage)(message)
 
     if (allowUpdateStage)
       stage += 1
@@ -86,21 +86,19 @@ abstract class BasePoll(val author: BotUser, val storages: Storages) {
     SendMessage(author.id, "Отправить опрос?", replyMarkup = Some(markup))
   }
 
-  def vote(from: Long, element: String, vote: Vote): Seq[SendMessage] = {
-    val messages = participants.filter(u => u._1.id == from).map {
-      case (u: BotUser, isVote: Boolean) =>
-        if (isVote)
-          SendMessage(u.id, "Вы уже голосовали")
-        else {
-          vote.vote(element)
-          participants(u) = true
-          SendMessage(u.id, "Ваш голос принят")
-        }
-    }.toSeq
+  def vote(voter: BotUser, element: String, vote: Vote): Seq[SendMessage] = {
+    val message =
+      if (participants(voter))
+        SendMessage(voter.id, "Вы уже голосовали")
+      else {
+        vote.vote(element)
+        participants(voter) = true
+        SendMessage(voter.id, "Ваш голос принят")
+      }
 
     if (participants.count(p => p._2) == participants.size)
-      messages ++ sendToParticipants { p => SendMessage(p.id, "Выбрано:" + vote.max) }
+      message +: sendToParticipants { p => SendMessage(p.id, "Выбрано:" + vote.max) }
     else
-      messages
+      message :: Nil
   }
 }

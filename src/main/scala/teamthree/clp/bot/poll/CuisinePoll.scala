@@ -14,16 +14,16 @@ case class CuisinePoll(a: BotUser, s: Storages) extends BasePoll(a, s) {
     sendToParticipants { p => SendMessage(p.id, s"${author.username} отменил встречу") }
   }
 
-  onNextStage { (from: Long, msg: String) =>
+  onNextStage { message =>
     SendMessage(author.id, "Введите логины тех с кем вы хотите пойти:") :: Nil
   }
 
-  onNextStage { (_: Long, msg: String) =>
-    addParticipants(msg) :+ sendPoll()
+  onNextStage { message =>
+    addParticipants(message.text) :+ sendPoll()
   }
 
-  onNextStage { (_: Long, msg: String) =>
-    val json = parse(msg).getOrElse(Json.Null)
+  onNextStage { message =>
+    val json = parse(message.text).getOrElse(Json.Null)
 
     json.as[ApplyPoll] match {
       case Right(value: ApplyPoll) =>
@@ -40,9 +40,9 @@ case class CuisinePoll(a: BotUser, s: Storages) extends BasePoll(a, s) {
     }
   }
 
-  onNextStage { (from: Long, msg: String) =>
+  onNextStage { message =>
     allowUpdateStage = false
-    vote(from, msg, cuisineVote)
+    vote(message.from, message.text, cuisineVote)
   }
 
 }

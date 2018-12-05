@@ -16,24 +16,24 @@ case class SimplePoll(a: BotUser, s: Storages) extends BasePoll(a, s) {
     sendToParticipants { p => SendMessage(p.id, s"${author.username} отменил встречу") }
   }
 
-  onNextStage { (_: Long, _: String) =>
+  onNextStage { message =>
     SendMessage(author.id, "Введите логины тех с кем вы хотите пойти:") :: Nil
   }
 
-  onNextStage { (_: Long, msg: String) =>
-    addParticipants(msg) :+ SendMessage(author.id, "Введите название кафе:")
+  onNextStage { message =>
+    addParticipants(message.text) :+ SendMessage(author.id, "Введите название кафе:")
   }
 
-  onNextStage { (_: Long, msg: String) =>
+  onNextStage { message =>
 
-    placeVote = Vote(msg.split(','))
+    placeVote = Vote(message.text.split(','))
 
     sendPoll() :: Nil
   }
 
-  onNextStage { (_: Long, msg: String) =>
+  onNextStage { message =>
 
-    val json = parse(msg).getOrElse(Json.Null)
+    val json = parse(message.text).getOrElse(Json.Null)
 
     json.as[ApplyPoll] match {
       case Right(value: ApplyPoll) =>
@@ -57,14 +57,14 @@ case class SimplePoll(a: BotUser, s: Storages) extends BasePoll(a, s) {
     }
   }
 
-  onNextStage { (from: Long, msg: String) =>
+  onNextStage { message =>
 
-    val json = parse(msg).getOrElse(Json.Null)
+    val json = parse(message.text).getOrElse(Json.Null)
 
     json.as[PollItem] match {
       case Right(value: PollItem) =>
         allowUpdateStage = false
-        vote(from, value.value, placeVote)
+        vote(message.from, value.value, placeVote)
       case Left(_) => SendMessage(author.id, "Error") :: Nil
     }
   }

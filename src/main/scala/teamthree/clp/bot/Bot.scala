@@ -13,6 +13,8 @@ case class ApplyPoll(authorId: Long, sendPoll: Boolean)
 
 case class PollItem(authorId: Long, value: String)
 
+case class InputMessage(from: BotUser, text: String)
+
 case class BotUser(id: Long, username: String, pollAuthor: Long = BotUser.NOT_IN_POLL)
 
 object BotUser {
@@ -89,12 +91,20 @@ trait CLPBot extends GlobalExecutionContext
 
   when(onMessage, notACommand) { msg =>
     //TODO: add error checking
-    updatePoll(msg.source, msg.text.get)
+    userStorage.find(msg.source) match {
+      case Some(user) =>
+        updatePoll(InputMessage(user, msg.text.get))
+      case None =>
+    }
   }
 
   override def receiveCallbackQuery(callbackQuery: CallbackQuery): Unit = {
     //TODO: add error checking
-    updatePoll(callbackQuery.from.id, callbackQuery.data.get)
+    userStorage.find(callbackQuery.from.id) match {
+      case Some(user) =>
+        updatePoll(InputMessage(user, callbackQuery.data.get))
+      case None =>
+    }
   }
 
   def createPoll(from: Long, message: String)(creator: BotUser => BasePoll): Unit = {
@@ -109,21 +119,18 @@ trait CLPBot extends GlobalExecutionContext
 
           userStorage.map(user.id) { u => u.copy(pollAuthor = u.id) }
 
-          sendMessages(poll.nextStage(from, message))
+          sendMessages(poll.nextStage(InputMessage(user, message)))
         }
 
       case None => request(SendMessage(from, BotMessages.PLEASE_SEND_START_COMMAND))
     }
   }
 
-  def updatePoll(from: Long, message: String): Unit = {
-    userStorage.find(from) match {
-      case Some(user) =>
-        pollStorage.find(user.pollAuthor) match {
-          case Some(poll) => sendMessages(poll.nextStage(from: Long, message))
-          case None => request(SendMessage(from, BotMessages.START_AND_HELP))
-        }
-      case None => request(SendMessage(from, BotMessages.PLEASE_SEND_START_COMMAND))
+  def updatePoll(message: InputMessage): Unit = {
+    pollStorage.find(message.from.pollAuthor) match {
+      case Some(poll: BasePoll) =>
+        sendMessages(poll.nextStage(message))
+      case None => request(SendMessage(message.from.id, BotMessages.START_AND_HELP))
     }
   }
 
