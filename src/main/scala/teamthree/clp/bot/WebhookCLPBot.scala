@@ -4,7 +4,9 @@ import com.bot4s.telegram.api._
 import com.bot4s.telegram.clients.AkkaHttpClient
 import slogging.{LogLevel, LoggerConfig, PrintLoggerFactory}
 
-
+/**
+  * Бот использующий webhook
+  */
 class WebhookCLPBot extends CLPBot
   with AkkaTelegramBot
   with Webhook {

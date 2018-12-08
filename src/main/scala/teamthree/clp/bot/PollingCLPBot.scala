@@ -8,6 +8,9 @@ import slogging.{LogLevel, LoggerConfig, PrintLoggerFactory}
 
 import scala.concurrent.Future
 
+/**
+  * Бот использующий polling, для локального тестирования
+  */
 class PollingCLPBot extends CLPBot
   with TelegramBot
   with Polling {

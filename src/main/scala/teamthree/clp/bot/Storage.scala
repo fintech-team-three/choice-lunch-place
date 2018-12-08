@@ -34,3 +34,24 @@ case class InMemoryStorage[K, V]() extends Storage[K, V] {
     storage = storage - id
   }
 }
+
+case class InMemoryUserBotStorage() {
+  private var users = Set[BotUser]()
+
+  def put(user: BotUser): Unit = {
+    users = users + user
+  }
+
+  def find(action: BotUser => Boolean): Option[BotUser] = {
+    users.find(action)
+  }
+
+  def map(id: Long)(mapper: BotUser => BotUser): Unit = {
+    users = users.map { u =>
+      if (u.id == id)
+        mapper(u)
+      else
+        u
+    }
+  }
+}
