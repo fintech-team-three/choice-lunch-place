@@ -8,31 +8,58 @@ import teamthree.clp.bot._
 
 import scala.collection.mutable
 
-abstract class BasePoll(val author: BotUser, val storages: Storages) {
-  type Action = InputMessage => Seq[SendMessage]
+/**
+  * Базовый класс опроса
+  *
+  * @param author автор опроса
+  * @param userStorage
+  */
+abstract class BasePoll(val author: BotUser, val userStorage: InMemeoryUserBotStorage) {
+  type Action = InputMessage => StageResult
+
+  private[BasePoll] case class StageResult(messages: Seq[SendMessage], update: Boolean)
 
   private var stage = 0
 
   private val stages = mutable.MutableList[Action]()
+
   private val participants = mutable.Map.empty[BotUser, Boolean]
 
-  //TODO Понять что делать с этим
-  protected var allowUpdateStage = true
-
+  /**
+    * Сообщения отправляемые при отмене опроса
+    *
+    * @return Список отправлемых сообщений
+    */
   protected def onCancelPoll(): Seq[SendMessage]
 
-  protected def onNextStage(action: Action): Unit = {
+  /**
+    * Сообщения отправляемые при завершении опроса
+    *
+    * @return Список отправлемых сообщений
+    */
+  protected def onEndPoll(): Seq[SendMessage]
+
+  /**
+    * Добавляет следующий этап опроса
+   */
+  protected def onStage(action: Action): Unit = {
     stages += action
   }
 
-  protected def addParticipants(msg: String): Seq[SendMessage] = {
+  /**
+    * Добавлеяет участников опроса
+    *
+    * @param msg Сообщение со списком логинов пользователей
+    * @return Список сообщений отправлемых автору опроса
+    */
+  def addParticipants(msg: String): Seq[SendMessage] = {
     val users = "@[A-Za-z_]+".r.findAllIn(msg).toList
 
     if (users.isEmpty)
       SendMessage(author.id, "Введите хотя бы одно имя пользователя") :: Nil
     else {
       users.flatMap { u =>
-        storages.userStorage.find(u) match {
+        userStorage.find(u) match {
           case Some(user: BotUser) =>
             if (user.pollAuthor == BotUser.NOT_IN_POLL) {
               addParticipant(user)
@@ -46,39 +73,42 @@ abstract class BasePoll(val author: BotUser, val storages: Storages) {
     }
   }
 
-  protected def addParticipant(user: BotUser): Unit = {
+  def addParticipant(user: BotUser): Unit = {
     participants += user -> false
-    storages.userStorage.map(user.id) { u => u.copy(pollAuthor = author.id) }
+    userStorage.map(user.id) { u => u.copy(pollAuthor = author.id) }
   }
 
+  /**
+    * Отмена опроса
+    * @return Список отправлемых сообщений
+    */
   def cancelPoll(): Seq[SendMessage] = {
     val messages = onCancelPoll()
     participants.keys.foreach { user =>
-      storages.userStorage.map(user.id) { u => u.copy(pollAuthor = BotUser.NOT_IN_POLL) }
+      userStorage.map(user.id) { u => u.copy(pollAuthor = BotUser.NOT_IN_POLL) }
     }
 
     messages
   }
 
   def nextStage(message: InputMessage): Seq[SendMessage] = {
-    //TODO Проверка на окончание опроса
-    val messages = stages(stage)(message)
+    val stageResult = stages(stage)(message)
 
-    if (allowUpdateStage)
-      stage += 1
+    if (stageResult.update) stage += 1
+
+    if (stages.size >= stage)
+      stageResult.messages ++ onEndPoll()
     else
-      allowUpdateStage = true
-
-    messages
+      stageResult.messages
   }
 
-  def sendToParticipants(fun: BotUser => SendMessage): Seq[SendMessage] = {
+  protected def sendToParticipants(fun: BotUser => SendMessage): Seq[SendMessage] = {
     participants.keys
       .map { user => fun(user) }
       .toSeq
   }
 
-  def sendPoll(): SendMessage = {
+  protected def sendPoll(): SendMessage = {
     val markup = InlineKeyboardMarkup.singleRow(Seq(
       InlineKeyboardButton.callbackData("Отправить", ApplyPoll(author.id, sendPoll = true).asJson.spaces2),
       InlineKeyboardButton.callbackData("Отменить", ApplyPoll(author.id, sendPoll = false).asJson.spaces2)))
@@ -100,5 +130,13 @@ abstract class BasePoll(val author: BotUser, val storages: Storages) {
       message +: sendToParticipants { p => SendMessage(p.id, "Выбрано:" + vote.max) }
     else
       message :: Nil
+  }
+
+  def next(messages: Seq[SendMessage]): StageResult = {
+    StageResult(messages, update = true)
+  }
+
+  def keep(messages: Seq[SendMessage]): StageResult = {
+    StageResult(messages, update = false)
   }
 }

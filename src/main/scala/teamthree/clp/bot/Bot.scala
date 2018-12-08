@@ -21,11 +21,6 @@ object BotUser {
   val NOT_IN_POLL: Long = -1L
 }
 
-trait Storages {
-  val userStorage = InMemeoryUserBotStorage()
-}
-
-
 object BotMessages {
   val PLEASE_SEND_START_COMMAND = "Пожалуйста отправьте команду /start для инициализации бота."
 
@@ -50,8 +45,7 @@ object BotMessages {
 
 trait CLPBot extends GlobalExecutionContext
   with Declarative
-  with Commands
-  with Storages {
+  with Commands {
 
   import declarative.when
 
@@ -59,6 +53,7 @@ trait CLPBot extends GlobalExecutionContext
     .getOrElse(Source.fromFile("bot.token").getLines().mkString)
 
   private val pollStorage = InMemoryStorage[Long, BasePoll]()
+  private val userStorage = InMemeoryUserBotStorage()
 
   onCommand('start) { implicit msg =>
     msg.from.flatMap { u => u.username } match {
@@ -72,12 +67,12 @@ trait CLPBot extends GlobalExecutionContext
 
   onCommand('newpoll) { msg =>
     //TODO: add error checking
-    createPoll(msg.source, msg.text.get) { from => CuisinePoll(from, this) }
+    createPoll(msg.source, msg.text.get) { from => CuisinePoll(from, userStorage) }
   }
 
   onCommand('newsimplepoll) { msg =>
     //TODO: add error checking
-    createPoll(msg.source, msg.text.get) { from => SimplePoll(from, this) }
+    createPoll(msg.source, msg.text.get) { from => SimplePoll(from, userStorage) }
   }
 
   onCommand('cancel) { implicit msg =>

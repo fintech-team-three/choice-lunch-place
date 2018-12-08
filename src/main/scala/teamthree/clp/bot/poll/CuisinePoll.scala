@@ -3,10 +3,10 @@ package teamthree.clp.bot.poll
 import com.bot4s.telegram.methods.SendMessage
 import io.circe.Json
 import io.circe.generic.auto._
-import io.circe.parser._
+import io.circe.parser.parse
 import teamthree.clp.bot._
 
-case class CuisinePoll(a: BotUser, s: Storages) extends BasePoll(a, s) {
+case class CuisinePoll(a: BotUser, s: InMemeoryUserBotStorage) extends BasePoll(a, s) {
 
   private val cuisineVote: Vote = Vote()
 
@@ -14,35 +14,48 @@ case class CuisinePoll(a: BotUser, s: Storages) extends BasePoll(a, s) {
     sendToParticipants { p => SendMessage(p.id, s"${author.username} отменил встречу") }
   }
 
-  onNextStage { message =>
-    SendMessage(author.id, "Введите логины тех с кем вы хотите пойти:") :: Nil
+  override protected def onEndPoll(): Seq[SendMessage] = {
+    sendToParticipants { p => SendMessage(p.id, s"Спасибо за участие в опросе") }
   }
 
-  onNextStage { message =>
-    addParticipants(message.text) :+ sendPoll()
+  onStage { _ =>
+    next(
+      SendMessage(author.id, "Введите логины тех с кем вы хотите пойти:") :: Nil
+    )
   }
 
-  onNextStage { message =>
-    val json = parse(message.text).getOrElse(Json.Null)
-
-    json.as[ApplyPoll] match {
-      case Right(value: ApplyPoll) =>
-        if (value.sendPoll) {
-
-          val toParticipants = sendToParticipants { u => SendMessage(u.id, s"${author.username} приглашает вас в кафе, напишите предпочитаемую кухню") }
-          val toAuthor = SendMessage(author.id, s"напишите предпочитаемую кухню")
-
-          toAuthor +: toParticipants
-        }
-        else
-          SendMessage(author.id, "Попробуйте еще раз ") :: Nil
-      case Left(_) => SendMessage(author.id, "Error") :: Nil
-    }
+  onStage { message =>
+    next(
+      addParticipants(message.text) :+ sendPoll()
+    )
   }
 
-  onNextStage { message =>
-    allowUpdateStage = false
-    vote(message.from, message.text, cuisineVote)
+  onStage { message =>
+    next(
+      parse(message.text)
+        .getOrElse(Json.Null)
+        .as[ApplyPoll] match {
+        case Right(value: ApplyPoll) =>
+          if (value.sendPoll) {
+
+            val toParticipants = sendToParticipants {
+              u => SendMessage(u.id, s"${author.username} приглашает вас в кафе, напишите предпочитаемую кухню")
+            }
+
+            SendMessage(author.id, s"напишите предпочитаемую кухню") +: toParticipants
+          }
+          else
+            Seq.empty
+        case Left(_) => Seq.empty
+      }
+    )
   }
+
+  onStage { message =>
+    keep(
+      vote(message.from, message.text, cuisineVote)
+    )
+  }
+
 
 }
