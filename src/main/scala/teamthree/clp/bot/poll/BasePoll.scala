@@ -92,6 +92,11 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
     messages
   }
 
+  /**
+    * Перейти к следующему этапу опроса
+    * @param message сообщение от пользователя
+    * @return Список отправлемых сообщений
+    */
   def nextStage(message: InputMessage): Seq[SendMessage] = {
     val stageResult = stages(stage)(message)
 
@@ -103,12 +108,21 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
       stageResult.messages
   }
 
+  /**
+    * Отправить сообщения участникам
+    * @param fun
+    * @return Список отправлемых сообщений
+    */
   protected def sendToParticipants(fun: BotUser => SendMessage): Seq[SendMessage] = {
     participants.keys
       .map { user => fun(user) }
       .toSeq
   }
 
+  /**
+    * Диалог подтверждения опроса
+    * @return
+    */
   protected def sendPoll(): SendMessage = {
     val markup = InlineKeyboardMarkup.singleRow(Seq(
       InlineKeyboardButton.callbackData("Отправить", ApplyPoll(author.id, sendPoll = true).asJson.spaces2),

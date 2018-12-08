@@ -50,7 +50,7 @@ case class SimplePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a,
         case Right(value: ApplyPoll) =>
           if (value.sendPoll) {
 
-            val buttons = placeVote.elements
+            val buttons = placeVote.elements()
               .map { place => InlineKeyboardButton.callbackData(place, PollItem(author.id, place).asJson.spaces2) }
 
             val markup = InlineKeyboardMarkup.singleColumn(buttons)

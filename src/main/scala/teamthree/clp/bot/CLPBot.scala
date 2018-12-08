@@ -9,17 +9,7 @@ import teamthree.clp.bot.poll.{BasePoll, CuisinePoll, SimplePoll}
 
 import scala.io.Source
 
-case class ApplyPoll(authorId: Long, sendPoll: Boolean)
 
-case class PollItem(authorId: Long, value: String)
-
-case class InputMessage(from: BotUser, text: String)
-
-case class BotUser(id: Long, username: String, pollAuthor: Long = BotUser.NOT_IN_POLL)
-
-object BotUser {
-  val NOT_IN_POLL: Long = -1L
-}
 
 object BotMessages {
   val PLEASE_SEND_START_COMMAND = "Пожалуйста отправьте команду /start для инициализации бота."
@@ -43,6 +33,9 @@ object BotMessages {
           """.stripMargin
 }
 
+/**
+  * Бот для выбора места обеда
+  */
 trait CLPBot extends GlobalExecutionContext
   with Declarative
   with Commands {
