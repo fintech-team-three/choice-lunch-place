@@ -14,7 +14,7 @@ import scala.collection.mutable
   * @param author автор опроса
   * @param userStorage
   */
-abstract class BasePoll(val author: BotUser, val userStorage: InMemeoryUserBotStorage) {
+abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotStorage) {
   type Action = InputMessage => StageResult
 
   private[BasePoll] case class StageResult(messages: Seq[SendMessage], update: Boolean)
@@ -41,7 +41,7 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemeoryUserBotSt
 
   /**
     * Добавляет следующий этап опроса
-   */
+    */
   protected def onStage(action: Action): Unit = {
     stages += action
   }
@@ -59,7 +59,7 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemeoryUserBotSt
       SendMessage(author.id, "Введите хотя бы одно имя пользователя") :: Nil
     else {
       users.flatMap { u =>
-        userStorage.find(u) match {
+        userStorage.find { user => user.username == u } match {
           case Some(user: BotUser) =>
             if (user.pollAuthor == BotUser.NOT_IN_POLL) {
               addParticipant(user)
@@ -80,6 +80,7 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemeoryUserBotSt
 
   /**
     * Отмена опроса
+    *
     * @return Список отправлемых сообщений
     */
   def cancelPoll(): Seq[SendMessage] = {

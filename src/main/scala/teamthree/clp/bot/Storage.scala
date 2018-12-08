@@ -5,8 +5,6 @@ trait Storage[K, V] {
 
   def find(id: K): Option[V]
 
-  def contains(id: K): Boolean
-
   def remove(id: K)
 
   def findAndUpdate(id: K)(mapper: V => V): Option[V] = {
@@ -30,29 +28,22 @@ case class InMemoryStorage[K, V]() extends Storage[K, V] {
     storage = storage + (id -> poll)
   }
 
-
   override def find(id: K): Option[V] = storage.get(id)
 
   override def remove(id: K): Unit = {
     storage = storage - id
   }
-
-  override def contains(id: K): Boolean = storage.contains(id)
 }
 
-case class InMemeoryUserBotStorage() {
+case class InMemoryUserBotStorage() {
   private var users = Set[BotUser]()
 
   def put(user: BotUser): Unit = {
-    users =  users + user
+    users = users + user
   }
 
-  def find(id: Long): Option[BotUser] = {
-    users.find { u => u.id == id }
-  }
-
-  def find(username: String): Option[BotUser] = {
-    users.find{ u => u.username == username }
+  def find(action: BotUser => Boolean): Option[BotUser] = {
+    users.find(action)
   }
 
   def map(id: Long)(mapper: BotUser => BotUser): Unit = {

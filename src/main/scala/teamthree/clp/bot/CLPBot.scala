@@ -53,7 +53,7 @@ trait CLPBot extends GlobalExecutionContext
     .getOrElse(Source.fromFile("bot.token").getLines().mkString)
 
   private val pollStorage = InMemoryStorage[Long, BasePoll]()
-  private val userStorage = InMemeoryUserBotStorage()
+  private val userStorage = InMemoryUserBotStorage()
 
   onCommand('start) { implicit msg =>
     msg.from.flatMap { u => u.username } match {
@@ -86,7 +86,7 @@ trait CLPBot extends GlobalExecutionContext
 
   when(onMessage, notACommand) { msg =>
     //TODO: add error checking
-    userStorage.find(msg.source) match {
+    userStorage.find { u => u.id == msg.source } match {
       case Some(user) =>
         updatePoll(InputMessage(user, msg.text.get))
       case None =>
@@ -95,7 +95,7 @@ trait CLPBot extends GlobalExecutionContext
 
   override def receiveCallbackQuery(callbackQuery: CallbackQuery): Unit = {
     //TODO: add error checking
-    userStorage.find(callbackQuery.from.id) match {
+    userStorage.find { u => u.id == callbackQuery.from.id } match {
       case Some(user) =>
         updatePoll(InputMessage(user, callbackQuery.data.get))
       case None =>
@@ -103,7 +103,7 @@ trait CLPBot extends GlobalExecutionContext
   }
 
   def createPoll(from: Long, message: String)(creator: BotUser => BasePoll): Unit = {
-    userStorage.find(from) match {
+    userStorage.find { u => u.id == from } match {
       case Some(user) =>
         if (user.pollAuthor != BotUser.NOT_IN_POLL)
           request(SendMessage(from, BotMessages.ONLY_ONE_POLL_AT_TIME))

@@ -6,7 +6,7 @@ import io.circe.generic.auto._
 import io.circe.parser.parse
 import teamthree.clp.bot._
 
-case class CuisinePoll(a: BotUser, s: InMemeoryUserBotStorage) extends BasePoll(a, s) {
+case class CuisinePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a, s) {
 
   private val cuisineVote: Vote = Vote()
 

@@ -8,7 +8,7 @@ import io.circe.parser._
 import io.circe.syntax._
 import teamthree.clp.bot._
 
-case class SimplePoll(a: BotUser, s: InMemeoryUserBotStorage) extends BasePoll(a, s) {
+case class SimplePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a, s) {
 
   private var placeVote: Vote = Vote()
 
@@ -50,14 +50,15 @@ case class SimplePoll(a: BotUser, s: InMemeoryUserBotStorage) extends BasePoll(a
         case Right(value: ApplyPoll) =>
           if (value.sendPoll) {
 
-            val buttons = placeVote.elements()
+            val buttons = placeVote.elements
               .map { place => InlineKeyboardButton.callbackData(place, PollItem(author.id, place).asJson.spaces2) }
-              .toSeq
 
             val markup = InlineKeyboardMarkup.singleColumn(buttons)
 
             val toParticipants = sendToParticipants { u =>
-              SendMessage(u.id, s"${author.username} приглашает вас в кафе, выберете предпочитаемое кафе", replyMarkup = Some(markup))
+              SendMessage(u.id,
+                s"${author.username} приглашает вас в кафе, выберете предпочитаемое кафе",
+                replyMarkup = Some(markup))
             }
 
             val toAuthor = SendMessage(author.id, s"выберете предпочитаемое кафе", replyMarkup = Some(markup))
@@ -78,7 +79,7 @@ case class SimplePoll(a: BotUser, s: InMemeoryUserBotStorage) extends BasePoll(a
         .as[PollItem] match {
         case Right(value: PollItem) =>
           vote(message.from, value.value, placeVote)
-        case Left(_) => SendMessage(author.id, "Error") :: Nil
+        case Left(_) => Seq.empty
       }
     )
   }
