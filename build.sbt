@@ -6,6 +6,8 @@ scalaVersion := "2.12.7"
 
 enablePlugins(JavaAppPackaging)
 
+mainClass in Compile := Some("teamthree.clp.Main")
+
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.5" % Test
 
 libraryDependencies += "com.bot4s" %% "telegram-core" % "4.0.0-RC2"
