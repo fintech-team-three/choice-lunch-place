@@ -23,7 +23,7 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
 
   private val stages = mutable.MutableList[Action]()
 
-  private val participants = mutable.Map.empty[BotUser, Boolean]
+  protected val participants: mutable.MutableList[BotUser] = mutable.MutableList[BotUser]()
 
   /**
     * Сообщения отправляемые при отмене опроса
@@ -74,7 +74,7 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
   }
 
   def addParticipant(user: BotUser): Unit = {
-    participants += user -> false
+    participants += user
     userStorage.map(user.id) { u => u.copy(pollAuthor = author.id) }
   }
 
@@ -85,15 +85,17 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
     */
   def cancelPoll(): Seq[SendMessage] = {
     val messages = onCancelPoll()
-    participants.keys.foreach { user =>
+    participants.foreach { user =>
       userStorage.map(user.id) { u => u.copy(pollAuthor = BotUser.NOT_IN_POLL) }
     }
 
+    userStorage.map(author.id) { u => u.copy(pollAuthor = BotUser.NOT_IN_POLL) }
     messages
   }
 
   /**
     * Перейти к следующему этапу опроса
+    *
     * @param message сообщение от пользователя
     * @return Список отправлемых сообщений
     */
@@ -102,7 +104,7 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
 
     if (stageResult.update) stage += 1
 
-    if (stages.size >= stage)
+    if (stage == stages.size)
       stageResult.messages ++ onEndPoll()
     else
       stageResult.messages
@@ -110,17 +112,17 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
 
   /**
     * Отправить сообщения участникам
+    *
     * @param fun
     * @return Список отправлемых сообщений
     */
   protected def sendToParticipants(fun: BotUser => SendMessage): Seq[SendMessage] = {
-    participants.keys
-      .map { user => fun(user) }
-      .toSeq
+    participants.map { user => fun(user) }
   }
 
   /**
     * Диалог подтверждения опроса
+    *
     * @return
     */
   protected def sendPoll(): SendMessage = {
@@ -129,22 +131,6 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
       InlineKeyboardButton.callbackData("Отменить", ApplyPoll(author.id, sendPoll = false).asJson.spaces2)))
 
     SendMessage(author.id, "Отправить опрос?", replyMarkup = Some(markup))
-  }
-
-  def vote(voter: BotUser, element: String, vote: Vote): Seq[SendMessage] = {
-    val message =
-      if (participants(voter))
-        SendMessage(voter.id, "Вы уже голосовали")
-      else {
-        vote.vote(element)
-        participants(voter) = true
-        SendMessage(voter.id, "Ваш голос принят")
-      }
-
-    if (participants.count(p => p._2) == participants.size)
-      message +: sendToParticipants { p => SendMessage(p.id, "Выбрано:" + vote.max) }
-    else
-      message :: Nil
   }
 
   def next(messages: Seq[SendMessage]): StageResult = {

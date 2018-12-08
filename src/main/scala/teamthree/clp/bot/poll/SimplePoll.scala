@@ -10,7 +10,7 @@ import teamthree.clp.bot._
 
 case class SimplePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a, s) {
 
-  private var placeVote: Vote = Vote()
+  private var placeVote: Vote = Vote(Seq.empty)
 
   override def onCancelPoll(): Seq[SendMessage] = {
     sendToParticipants { p => SendMessage(p.id, s"${author.username} отменил встречу") }
@@ -34,7 +34,7 @@ case class SimplePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a,
 
   onStage { message =>
 
-    placeVote = Vote(message.text.split(','))
+    placeVote = Vote(participants, message.text.split(','))
 
     next(
       sendPoll() :: Nil
@@ -73,14 +73,22 @@ case class SimplePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a,
   }
 
   onStage { message =>
-    keep(
-      parse(message.text)
-        .getOrElse(Json.Null)
-        .as[PollItem] match {
-        case Right(value: PollItem) =>
-          vote(message.from, value.value, placeVote)
-        case Left(_) => Seq.empty
-      }
-    )
+    parse(message.text)
+      .getOrElse(Json.Null)
+      .as[PollItem] match {
+      case Right(item: PollItem) =>
+        placeVote = placeVote.vote(message.from, item.value)
+
+        if (placeVote.isVoteEnd) {
+          next(
+            SendMessage(message.from.id, "Ваш голос принят") +:
+              sendToParticipants { p => SendMessage(p.id, "В результате голосования выбрано(а):" + placeVote.max) }
+          )
+        } else {
+          keep(SendMessage(message.from.id, "Ваш голос принят") :: Nil)
+        }
+
+      case Left(_) => keep(Seq.empty)
+    }
   }
 }

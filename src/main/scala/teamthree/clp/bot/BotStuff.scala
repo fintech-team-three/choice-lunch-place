@@ -4,6 +4,7 @@ import scala.collection.mutable
 
 /**
   * Отправить опрос или нет
+  *
   * @param authorId автор опроса
   * @param sendPoll подтверждение отправки
   */
@@ -18,8 +19,9 @@ case class PollItem(authorId: Long, value: String)
 
 /**
   * Пользователь бота
-  * @param id id беседы пользователя с ботом
-  * @param username имя пользователя
+  *
+  * @param id         id беседы пользователя с ботом
+  * @param username   имя пользователя
   * @param pollAuthor находится ли пользователь в опросе,
   *                   если да то равно [[BotUser.id]] автора,
   *                   если нет то [[teamthree.clp.bot.BotUser.NOT_IN_POLL]]
@@ -32,6 +34,7 @@ object BotUser {
 
 /**
   * Сообщение от пользователя
+  *
   * @param from пользователь от которого отправлено сообщение
   * @param text текст сообщения
   */
@@ -42,28 +45,39 @@ case class InputMessage(from: BotUser, text: String)
   *
   * @param el список пунктов опроса
   */
-case class Vote(private val el: Seq[String] = Seq.empty) {
-
-  private val items = mutable.Map(el.map(e => e -> 0): _*)
+case class Vote private(private val participants: Map[BotUser, Boolean],
+                        private val items: mutable.Map[String, Int]) {
 
   /**
     *
     * @return список пунктов опроса
     */
-  def elements(): Seq[String] ={
+  def elements(): Seq[String] = {
     items.keys.toSeq
   }
 
   /**
     * Голосование за один из пунктов опроса
     *
-    * @param element пунккт опроса, если отсутствует, то будет добавлен в опрос
+    * @param voter   голосующий
+    * @param element пункт за который голосуют
+    * @return обновленый опрос
     */
-  def vote(element: String): Unit = {
-    if (items.contains(element))
-      items(element) += 1
-    else
-      items += element -> 1
+  def vote(voter: BotUser, element: String): Vote = {
+    if (participants(voter))
+      this
+    else {
+      Vote(participants + (voter -> true),
+        items + (element -> (items.getOrElse(element, 0) + 1)))
+    }
+  }
+
+  /**
+    * Все ли проголосовали
+    * @return да или нет
+    */
+  def isVoteEnd: Boolean = {
+    participants.values.groupBy(identity).size == participants.size
   }
 
   /**
@@ -72,4 +86,10 @@ case class Vote(private val el: Seq[String] = Seq.empty) {
   def max: String = {
     items.maxBy(_._2)._1
   }
+}
+
+object Vote {
+  def apply(participants: Seq[BotUser], elements: Seq[String] = Seq.empty): Vote =
+    new Vote(Map(participants.map(p => p -> false): _*),
+      mutable.Map(elements.map(e => e -> 0): _*))
 }
