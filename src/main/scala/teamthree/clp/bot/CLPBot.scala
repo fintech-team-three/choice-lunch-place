@@ -5,10 +5,9 @@ import com.bot4s.telegram.api._
 import com.bot4s.telegram.api.declarative.{Commands, Declarative}
 import com.bot4s.telegram.methods.{ParseMode, SendMessage}
 import com.bot4s.telegram.models._
-import teamthree.clp.bot.poll.{BasePoll, CuisinePoll, SimplePoll}
+import teamthree.clp.bot.poll.{BasePoll, ChoicePollPoll}
 
 import scala.io.Source
-
 
 
 object BotMessages {
@@ -60,12 +59,22 @@ trait CLPBot extends GlobalExecutionContext
 
   onCommand('newpoll) { msg =>
     //TODO: add error checking
-    createPoll(msg.source, msg.text.get) { from => CuisinePoll(from, userStorage) }
-  }
+    userStorage.find { u => u.id == msg.source } match {
+      case Some(user) =>
+        if (user.pollAuthor != BotUser.NOT_IN_POLL)
+          request(SendMessage(msg.source, BotMessages.ONLY_ONE_POLL_AT_TIME))
+        else {
+          val poll = ChoicePollPoll(user, userStorage, pollStorage)
 
-  onCommand('newsimplepoll) { msg =>
-    //TODO: add error checking
-    createPoll(msg.source, msg.text.get) { from => SimplePoll(from, userStorage) }
+          pollStorage.put(user.id, poll)
+
+          userStorage.map(user.id) { u => u.copy(pollAuthor = u.id) }
+
+          sendMessages(poll.nextStage(InputMessage(user, msg.text.get)))
+        }
+
+      case None => request(SendMessage(msg.source, BotMessages.PLEASE_SEND_START_COMMAND))
+    }
   }
 
   onCommand('cancel) { implicit msg =>
@@ -78,39 +87,18 @@ trait CLPBot extends GlobalExecutionContext
   }
 
   when(onMessage, notACommand) { msg =>
-    //TODO: add error checking
     userStorage.find { u => u.id == msg.source } match {
       case Some(user) =>
-        updatePoll(InputMessage(user, msg.text.get))
+        updatePoll(InputMessage(user, msg.text.getOrElse(""), msg.location))
       case None =>
     }
   }
 
   override def receiveCallbackQuery(callbackQuery: CallbackQuery): Unit = {
-    //TODO: add error checking
     userStorage.find { u => u.id == callbackQuery.from.id } match {
       case Some(user) =>
-        updatePoll(InputMessage(user, callbackQuery.data.get))
+        updatePoll(InputMessage(user, callbackQuery.data.getOrElse(""), callbackQuery.message.flatMap { m => m.location }))
       case None =>
-    }
-  }
-
-  def createPoll(from: Long, message: String)(creator: BotUser => BasePoll): Unit = {
-    userStorage.find { u => u.id == from } match {
-      case Some(user) =>
-        if (user.pollAuthor != BotUser.NOT_IN_POLL)
-          request(SendMessage(from, BotMessages.ONLY_ONE_POLL_AT_TIME))
-        else {
-          val poll = creator(user)
-
-          pollStorage.put(user.id, poll)
-
-          userStorage.map(user.id) { u => u.copy(pollAuthor = u.id) }
-
-          sendMessages(poll.nextStage(InputMessage(user, message)))
-        }
-
-      case None => request(SendMessage(from, BotMessages.PLEASE_SEND_START_COMMAND))
     }
   }
 
@@ -127,5 +115,8 @@ trait CLPBot extends GlobalExecutionContext
   }
 
   def notACommand(msg: Message): Boolean =
-    msg.text.exists(m => !m.startsWith("/"))
+    msg.text match {
+      case Some(text) => !text.startsWith("/")
+      case None => true
+    }
 }

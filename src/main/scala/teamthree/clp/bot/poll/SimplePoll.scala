@@ -10,7 +10,7 @@ import teamthree.clp.bot._
 
 case class SimplePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a, s) {
 
-  private var placeVote: Vote = Vote()
+  private var placeVote: Vote = Vote(Seq.empty)
 
   override def onCancelPoll(): Seq[SendMessage] = {
     sendToParticipants { p => SendMessage(p.id, s"${author.username} отменил встречу") }
@@ -21,66 +21,72 @@ case class SimplePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a,
   }
 
   onStage { _ =>
-    next(
+    next { () =>
       SendMessage(author.id, "Введите логины тех с кем вы хотите пойти:") :: Nil
-    )
+    }
   }
 
   onStage { message =>
-    next(
+    next { () =>
       addParticipants(message.text) :+ SendMessage(author.id, "Введите название кафе:")
-    )
+    }
   }
 
   onStage { message =>
 
-    placeVote = Vote(message.text.split(','))
+    placeVote = Vote(participants, message.text.split(','))
 
-    next(
+    next { () =>
       sendPoll() :: Nil
-    )
+    }
   }
 
   onStage { message =>
 
-    next(
-      parse(message.text)
-        .getOrElse(Json.Null)
-        .as[ApplyPoll] match {
-        case Right(value: ApplyPoll) =>
-          if (value.sendPoll) {
+    parse(message.text)
+      .getOrElse(Json.Null)
+      .as[ApplyPoll] match {
+      case Right(value: ApplyPoll) =>
+        if (value.sendPoll) {
 
-            val buttons = placeVote.elements()
-              .map { place => InlineKeyboardButton.callbackData(place, PollItem(author.id, place).asJson.spaces2) }
+          val buttons = placeVote.elements()
+            .map { place => InlineKeyboardButton.callbackData(place, PollItem(author.id, place).asJson.spaces2) }
 
-            val markup = InlineKeyboardMarkup.singleColumn(buttons)
+          val markup = InlineKeyboardMarkup.singleColumn(buttons)
 
-            val toParticipants = sendToParticipants { u =>
-              SendMessage(u.id,
-                s"${author.username} приглашает вас в кафе, выберете предпочитаемое кафе",
-                replyMarkup = Some(markup))
-            }
-
-            val toAuthor = SendMessage(author.id, s"выберете предпочитаемое кафе", replyMarkup = Some(markup))
-
-            toAuthor +: toParticipants
+          val toParticipants = sendToParticipants { u =>
+            SendMessage(u.id,
+              s"${author.username} приглашает вас в кафе, выберете предпочитаемое кафе",
+              replyMarkup = Some(markup))
           }
-          else
-            Seq.empty
-        case Left(_) => Seq.empty
-      }
-    )
+
+          val toAuthor = SendMessage(author.id, s"выберете предпочитаемое кафе", replyMarkup = Some(markup))
+
+          next { () => toAuthor +: toParticipants }
+        }
+        else
+          next { () => cancelPoll() }
+      case Left(_) => next { () => Seq.empty }
+    }
   }
 
   onStage { message =>
-    keep(
-      parse(message.text)
-        .getOrElse(Json.Null)
-        .as[PollItem] match {
-        case Right(value: PollItem) =>
-          vote(message.from, value.value, placeVote)
-        case Left(_) => Seq.empty
-      }
-    )
+    parse(message.text)
+      .getOrElse(Json.Null)
+      .as[PollItem] match {
+      case Right(item: PollItem) =>
+        placeVote = placeVote.vote(message.from, item.value)
+
+        if (placeVote.isVoteEnd) {
+          next { () =>
+            SendMessage(message.from.id, "Ваш голос принят") +:
+              sendToParticipants { p => SendMessage(p.id, "В результате голосования выбрано(а):" + placeVote.max) }
+          }
+        } else {
+          keep { () => SendMessage(message.from.id, "Ваш голос принят") :: Nil }
+        }
+
+      case Left(_) => keep { () => Seq.empty }
+    }
   }
 }
