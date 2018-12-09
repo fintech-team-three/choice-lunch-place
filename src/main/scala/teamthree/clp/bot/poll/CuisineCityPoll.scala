@@ -72,8 +72,8 @@ case class CuisineCityPoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePo
 
         /** *************************************************/
         //places
-        val places = "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: "Кафе 1" ::
-          "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: Nil
+        val places = "Кафе 1" :: "Кафе 2" :: "Кафе 3" :: "Кафе 4" :: "Кафе 5" ::
+          "Кафе 6" :: "Кафе 7" :: "Кафе 8" :: "Кафе 9" :: "Кафе 10" :: Nil
 
         /** ************************************************/
 
@@ -113,7 +113,7 @@ case class CuisineCityPoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePo
           if (placeVote.isVoteEnd) {
             next { () =>
               SendMessage(message.from.id, "Ваш голос принят") +:
-                SendMessage(message.from.id, "В результате голосования выбрано:" + placeVote.max) +:
+                SendMessage(author.id, "В результате голосования выбрано:" + placeVote.max) +:
                 sendToParticipants {
                   p => SendMessage(p.id, "В результате голосования выбрано:" + placeVote.max)
                 }

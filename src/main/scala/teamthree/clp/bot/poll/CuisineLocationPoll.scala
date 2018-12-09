@@ -125,7 +125,7 @@ case class CuisineLocationPoll(a: BotUser, s: InMemoryUserBotStorage) extends Ba
           if (placeVote.isVoteEnd) {
             next { () =>
               SendMessage(message.from.id, "Ваш голос принят") +:
-                SendMessage(message.from.id, "В результате голосования выбрано:" + placeVote.max) +:
+                SendMessage(author.id, "В результате голосования выбрано:" + placeVote.max) +:
                 sendToParticipants {
                   p => SendMessage(p.id, "В результате голосования выбрано:" + placeVote.max)
                 }
