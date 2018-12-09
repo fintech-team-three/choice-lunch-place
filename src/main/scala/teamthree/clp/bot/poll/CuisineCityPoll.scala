@@ -8,7 +8,7 @@ import io.circe.parser._
 import io.circe.syntax._
 import teamthree.clp.bot._
 
-case class CuisineLocationPoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a, s) {
+case class CuisineCityPoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a, s) {
 
   private var cuisineVote: Vote = Vote(Seq.empty)
   private var placeVote: Vote = Vote(Seq.empty)

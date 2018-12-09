@@ -45,7 +45,7 @@ case class ChoicePollPoll(a: BotUser,
       | Вы приглашаете людей и предлогаете им выбрать
       | предпочитаемую кухню и проголосовать за одно из предложенных кафе
       | в городе
-    """.stripMargin -> CuisineLocationPoll)
+    """.stripMargin -> CuisineCityPoll)
 
   onStage { _ =>
     next { () =>
