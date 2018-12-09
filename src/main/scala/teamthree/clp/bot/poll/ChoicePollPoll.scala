@@ -26,32 +26,15 @@ case class ChoicePollPoll(a: BotUser,
   override protected def onEndPoll(): Seq[SendMessage] = Seq.empty
 
   private val pollMap = Map(
-    """
-      | Простой выбор
-      |
-      | Вы приглашаете людей и предлогаете им пойти
-      | в одно из предложенных вами место
-    """.stripMargin -> SimplePoll,
-    """
-      | Рядом с вами
-      |
-      | Вы приглашаете людей и предлогаете им выбрать
-      | предпочитаемую кухню и проголосовать за одно из предложенных кафе
-      | рядом с вами
-    """.stripMargin -> CuisineLocationPoll,
-    """
-      | В городе
-      |
-      | Вы приглашаете людей и предлогаете им выбрать
-      | предпочитаемую кухню и проголосовать за одно из предложенных кафе
-      | в городе
-    """.stripMargin -> CuisineCityPoll)
+    "Простой выбор" -> SimplePoll,
+    "Рядом с вами" -> CuisineLocationPoll,
+    "В городе" -> CuisineCityPoll)
 
   onStage { _ =>
     next { () =>
 
-      val buttons = pollMap.keys
-        .map { place => InlineKeyboardButton.callbackData(place, PollItem(author.id, place).asJson.spaces2) }
+      val buttons = pollMap.keys.zipWithIndex
+        .map { place => InlineKeyboardButton.callbackData(place._1, PollItem(author.id, place._2.toString).asJson.spaces2) }
         .toSeq
 
       val markup = InlineKeyboardMarkup.singleColumn(buttons)
@@ -69,7 +52,9 @@ case class ChoicePollPoll(a: BotUser,
 
           endPoll()
 
-          val poll = pollMap(item.value)(author, userStorage)
+          val values = pollMap.values.toSeq
+          val poll = values(item.value.toInt)(author, userStorage)
+
           pollStorage.put(author.id, poll)
           userStorage.map(author.id) { u => u.copy(pollAuthor = u.id) }
 
