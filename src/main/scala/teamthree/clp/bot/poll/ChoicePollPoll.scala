@@ -56,7 +56,7 @@ case class ChoicePollPoll(a: BotUser,
           val poll = values(item.value.toInt)(author, userStorage)
 
           pollStorage.put(author.id, poll)
-          userStorage.map(author.id) { u => u.copy(pollAuthor = u.id) }
+          userStorage.map(author.id) { u => u.pollAuthor = u.id; u }
 
           poll.nextStage(InputMessage(author, ""))
 

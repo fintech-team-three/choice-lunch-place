@@ -28,7 +28,7 @@ case class PollItem(authorId: Long, value: String)
   *                   если да то равно [[BotUser.id]] автора,
   *                   если нет то [[teamthree.clp.bot.BotUser.NOT_IN_POLL]]
   */
-case class BotUser(id: Long, username: String, pollAuthor: Long = BotUser.NOT_IN_POLL)
+case class BotUser(id: Long, username: String, var pollAuthor: Long = BotUser.NOT_IN_POLL)
 
 object BotUser {
   val NOT_IN_POLL: Long = -1L
@@ -37,8 +37,8 @@ object BotUser {
 /**
   * Сообщение от пользователя
   *
-  * @param from пользователь от которого отправлено сообщение
-  * @param text текст сообщения
+  * @param from     пользователь от которого отправлено сообщение
+  * @param text     текст сообщения
   * @param location положение пользователя
   */
 case class InputMessage(from: BotUser, text: String, location: Option[Location] = None)
@@ -81,7 +81,7 @@ case class Vote private(private val participants: Map[BotUser, Boolean],
     * @return да или нет
     */
   def isVoteEnd: Boolean = {
-    participants.values.groupBy(identity).size == participants.size
+    participants.values.count(identity) == participants.size
   }
 
   /**

@@ -68,7 +68,7 @@ trait CLPBot extends GlobalExecutionContext
 
           pollStorage.put(user.id, poll)
 
-          userStorage.map(user.id) { u => u.copy(pollAuthor = u.id) }
+          userStorage.map(user.id) { u => u.pollAuthor = u.id; u }
 
           sendMessages(poll.nextStage(InputMessage(user, msg.text.get)))
         }
