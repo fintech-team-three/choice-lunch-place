@@ -21,55 +21,53 @@ case class SimplePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a,
   }
 
   onStage { _ =>
-    next(
+    next { () =>
       SendMessage(author.id, "Введите логины тех с кем вы хотите пойти:") :: Nil
-    )
+    }
   }
 
   onStage { message =>
-    next(
+    next { () =>
       addParticipants(message.text) :+ SendMessage(author.id, "Введите название кафе:")
-    )
+    }
   }
 
   onStage { message =>
 
     placeVote = Vote(participants, message.text.split(','))
 
-    next(
+    next { () =>
       sendPoll() :: Nil
-    )
+    }
   }
 
   onStage { message =>
 
-    next(
-      parse(message.text)
-        .getOrElse(Json.Null)
-        .as[ApplyPoll] match {
-        case Right(value: ApplyPoll) =>
-          if (value.sendPoll) {
+    parse(message.text)
+      .getOrElse(Json.Null)
+      .as[ApplyPoll] match {
+      case Right(value: ApplyPoll) =>
+        if (value.sendPoll) {
 
-            val buttons = placeVote.elements()
-              .map { place => InlineKeyboardButton.callbackData(place, PollItem(author.id, place).asJson.spaces2) }
+          val buttons = placeVote.elements()
+            .map { place => InlineKeyboardButton.callbackData(place, PollItem(author.id, place).asJson.spaces2) }
 
-            val markup = InlineKeyboardMarkup.singleColumn(buttons)
+          val markup = InlineKeyboardMarkup.singleColumn(buttons)
 
-            val toParticipants = sendToParticipants { u =>
-              SendMessage(u.id,
-                s"${author.username} приглашает вас в кафе, выберете предпочитаемое кафе",
-                replyMarkup = Some(markup))
-            }
-
-            val toAuthor = SendMessage(author.id, s"выберете предпочитаемое кафе", replyMarkup = Some(markup))
-
-            toAuthor +: toParticipants
+          val toParticipants = sendToParticipants { u =>
+            SendMessage(u.id,
+              s"${author.username} приглашает вас в кафе, выберете предпочитаемое кафе",
+              replyMarkup = Some(markup))
           }
-          else
-            Seq.empty
-        case Left(_) => Seq.empty
-      }
-    )
+
+          val toAuthor = SendMessage(author.id, s"выберете предпочитаемое кафе", replyMarkup = Some(markup))
+
+          next { () => toAuthor +: toParticipants }
+        }
+        else
+          next { () => cancelPoll() }
+      case Left(_) => next { () => Seq.empty }
+    }
   }
 
   onStage { message =>
@@ -80,15 +78,15 @@ case class SimplePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a,
         placeVote = placeVote.vote(message.from, item.value)
 
         if (placeVote.isVoteEnd) {
-          next(
+          next { () =>
             SendMessage(message.from.id, "Ваш голос принят") +:
               sendToParticipants { p => SendMessage(p.id, "В результате голосования выбрано(а):" + placeVote.max) }
-          )
+          }
         } else {
-          keep(SendMessage(message.from.id, "Ваш голос принят") :: Nil)
+          keep { () => SendMessage(message.from.id, "Ваш голос принят") :: Nil }
         }
 
-      case Left(_) => keep(Seq.empty)
+      case Left(_) => keep { () => Seq.empty }
     }
   }
 }

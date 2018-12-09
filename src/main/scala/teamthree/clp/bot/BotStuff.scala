@@ -1,5 +1,7 @@
 package teamthree.clp.bot
 
+import com.bot4s.telegram.models.Location
+
 import scala.collection.mutable
 
 /**
@@ -37,8 +39,9 @@ object BotUser {
   *
   * @param from пользователь от которого отправлено сообщение
   * @param text текст сообщения
+  * @param location положение пользователя
   */
-case class InputMessage(from: BotUser, text: String)
+case class InputMessage(from: BotUser, text: String, location: Option[Location] = None)
 
 /**
   * Простой опрос
@@ -74,6 +77,7 @@ case class Vote private(private val participants: Map[BotUser, Boolean],
 
   /**
     * Все ли проголосовали
+    *
     * @return да или нет
     */
   def isVoteEnd: Boolean = {

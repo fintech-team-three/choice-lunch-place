@@ -1,7 +1,7 @@
 package teamthree.clp.bot.poll
 
 import com.bot4s.telegram.methods.SendMessage
-import com.bot4s.telegram.models.{InlineKeyboardButton, InlineKeyboardMarkup}
+import com.bot4s.telegram.models.{InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup}
 import io.circe.Json
 import io.circe.generic.auto._
 import io.circe.parser._
@@ -22,19 +22,48 @@ case class CuisinePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a
   }
 
   onStage { _ =>
-    next(
+    next { () =>
+      val markup = ReplyKeyboardMarkup.singleButton(
+        KeyboardButton.requestLocation("Координаты"), oneTimeKeyboard = Some(true))
+
+      SendMessage(author.id, "Координаты", replyMarkup = Some(markup)) :: Nil
+    }
+  }
+
+  onStage { message =>
+
+    message.location match {
+      case Some(location) =>
+
+        /** **************************************/
+
+        next { () =>
+          SendMessage(message.from.id, "координаты получены") :: Nil
+        }
+
+      /** **************************************/
+      case None => keep { () =>
+        SendMessage(message.from.id, "Отправьте свои координаты или отмените опрос") :: Nil
+      }
+    }
+
+
+  }
+
+  onStage { message =>
+    next { () =>
       SendMessage(author.id, "Введите логины тех с кем вы хотите пойти:") :: Nil
-    )
+    }
   }
 
   onStage { message =>
-    next(
+    next { () =>
       addParticipants(message.text) :+ sendPoll()
-    )
+    }
   }
 
   onStage { message =>
-    next(
+    next { () =>
       parse(message.text)
         .getOrElse(Json.Null)
         .as[ApplyPoll] match {
@@ -51,7 +80,7 @@ case class CuisinePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a
             Seq.empty
         case Left(_) => Seq.empty
       }
-    )
+    }
   }
 
   onStage { message =>
@@ -79,35 +108,40 @@ case class CuisinePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a
             SendMessage(u.id, "Выберете предпочитаемое кафе", replyMarkup = Some(markup))
           }
 
-          next(
+          next { () =>
             SendMessage(message.from.id, "Ваш голос принят") :: Nil ++
               sendToParticipants { p => SendMessage(p.id, "В результате голосования выбрано(а):" + cuisineVote.max) } ++
               toParticipants
-          )
+          }
         } else {
-          keep(SendMessage(message.from.id, "Ваш голос принят") :: Nil)
+          keep { () =>
+            SendMessage(message.from.id, "Ваш голос принят") :: Nil
+          }
         }
-      case Left(_) => keep(Seq.empty)
+      case Left(_) => keep { () => Seq.empty }
     }
   }
 
-  onStage { message =>
-    parse(message.text)
-      .getOrElse(Json.Null)
-      .as[PollItem] match {
-      case Right(item: PollItem) =>
-        placeVote = placeVote.vote(message.from, item.value)
+  onStage {
+    message =>
+      parse(message.text)
+        .getOrElse(Json.Null)
+        .as[PollItem] match {
+        case Right(item: PollItem) =>
+          placeVote = placeVote.vote(message.from, item.value)
 
-        if (placeVote.isVoteEnd) {
-          next(
-            SendMessage(message.from.id, "Ваш голос принят") +:
-              sendToParticipants { p => SendMessage(p.id, "В результате голосования выбрано(а):" + placeVote.max) }
-          )
-        } else {
-          keep(SendMessage(message.from.id, "Ваш голос принят") :: Nil)
-        }
+          if (placeVote.isVoteEnd) {
+            next { () =>
+              SendMessage(message.from.id, "Ваш голос принят") +:
+                sendToParticipants {
+                  p => SendMessage(p.id, "В результате голосования выбрано(а):" + placeVote.max)
+                }
+            }
+          } else {
+            keep { () => SendMessage(message.from.id, "Ваш голос принят") :: Nil }
+          }
 
-      case Left(_) => keep(Seq.empty)
-    }
+        case Left(_) => keep { () => Seq.empty }
+      }
   }
 }

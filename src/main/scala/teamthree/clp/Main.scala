@@ -1,8 +1,8 @@
 package teamthree.clp
 
-import teamthree.clp.bot.WebhookCLPBot
+import teamthree.clp.bot.{PollingCLPBot, WebhookCLPBot}
 
 object Main extends App {
-  val bot = new WebhookCLPBot()
+  val bot = new PollingCLPBot()
   val eol = bot.run()
 }

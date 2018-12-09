@@ -20,6 +20,7 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
   private[BasePoll] case class StageResult(messages: Seq[SendMessage], update: Boolean)
 
   private var stage = 0
+  private var isPollEnd = false
 
   private val stages = mutable.MutableList[Action]()
 
@@ -84,6 +85,7 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
     * @return Список отправлемых сообщений
     */
   def cancelPoll(): Seq[SendMessage] = {
+    isPollEnd = true
     val messages = onCancelPoll()
     participants.foreach { user =>
       userStorage.map(user.id) { u => u.copy(pollAuthor = BotUser.NOT_IN_POLL) }
@@ -91,6 +93,26 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
 
     userStorage.map(author.id) { u => u.copy(pollAuthor = BotUser.NOT_IN_POLL) }
     messages
+  }
+
+  /**
+    * Окончание опроса
+    *
+    * @return Список отправлемых сообщений
+    */
+  def endPoll(): Seq[SendMessage] = {
+    if (!isPollEnd) {
+      isPollEnd = true
+      val messages = onEndPoll()
+      participants.foreach { user =>
+        userStorage.map(user.id) { u => u.copy(pollAuthor = BotUser.NOT_IN_POLL) }
+      }
+
+      userStorage.map(author.id) { u => u.copy(pollAuthor = BotUser.NOT_IN_POLL) }
+      messages
+    }
+    else
+      Seq.empty
   }
 
   /**
@@ -105,7 +127,7 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
     if (stageResult.update) stage += 1
 
     if (stage == stages.size)
-      stageResult.messages ++ onEndPoll()
+      stageResult.messages ++ endPoll()
     else
       stageResult.messages
   }
@@ -133,11 +155,11 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
     SendMessage(author.id, "Отправить опрос?", replyMarkup = Some(markup))
   }
 
-  def next(messages: Seq[SendMessage]): StageResult = {
-    StageResult(messages, update = true)
+  def next(action: () => Seq[SendMessage]): StageResult = {
+    StageResult(action(), update = true)
   }
 
-  def keep(messages: Seq[SendMessage]): StageResult = {
-    StageResult(messages, update = false)
+  def keep(action: () => Seq[SendMessage]): StageResult = {
+    StageResult(action(), update = false)
   }
 }
