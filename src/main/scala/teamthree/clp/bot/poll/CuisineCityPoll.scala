@@ -1,17 +1,18 @@
 package teamthree.clp.bot.poll
 
 import com.bot4s.telegram.methods.SendMessage
-import com.bot4s.telegram.models.{InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup}
+import com.bot4s.telegram.models.{InlineKeyboardButton, InlineKeyboardMarkup}
 import io.circe.Json
 import io.circe.generic.auto._
 import io.circe.parser._
 import io.circe.syntax._
 import teamthree.clp.bot._
 
-case class CuisinePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a, s) {
+case class CuisineLocationPoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a, s) {
 
   private var cuisineVote: Vote = Vote(Seq.empty)
   private var placeVote: Vote = Vote(Seq.empty)
+  private var city = ""
 
   override def onCancelPoll(): Seq[SendMessage] = {
     sendToParticipants { p => SendMessage(p.id, s"${author.username} отменил встречу") }
@@ -23,35 +24,13 @@ case class CuisinePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a
 
   onStage { _ =>
     next { () =>
-      val markup = ReplyKeyboardMarkup.singleButton(
-        KeyboardButton.requestLocation("Координаты"), oneTimeKeyboard = Some(true))
-
-      SendMessage(author.id, "Координаты", replyMarkup = Some(markup)) :: Nil
+      SendMessage(author.id, "Отправьте город в котором вы хотите встретиться") :: Nil
     }
-  }
-
-  onStage { message =>
-
-    message.location match {
-      case Some(location) =>
-
-        /** **************************************/
-
-        next { () =>
-          SendMessage(message.from.id, "координаты получены") :: Nil
-        }
-
-      /** **************************************/
-      case None => keep { () =>
-        SendMessage(message.from.id, "Отправьте свои координаты или отмените опрос") :: Nil
-      }
-    }
-
-
   }
 
   onStage { message =>
     next { () =>
+      city = message.text
       SendMessage(author.id, "Введите логины тех с кем вы хотите пойти:") :: Nil
     }
   }
@@ -91,7 +70,7 @@ case class CuisinePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a
         cuisineVote = cuisineVote.vote(message.from, item.value)
         if (cuisineVote.isVoteEnd) {
           /** *************************************************/
-
+          //places
           val places = "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: "Кафе 1" ::
             "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: Nil
 
