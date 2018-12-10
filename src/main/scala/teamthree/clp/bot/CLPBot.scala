@@ -17,19 +17,7 @@ object BotMessages {
 
   val ONLY_ONE_POLL_AT_TIME = "Одновременно допускается только один опрос."
 
-  val START_AND_HELP: String =
-    s"""Выбор места для обеда.
-       |
-             |/start - list commands
-       |
-             |/newpoll - новый опрос
-       |
-             |/newsimplepoll - новый опрос
-       |
-             |/status - статус опроса
-       |
-             |@Bot args - Inline mode
-          """.stripMargin
+  val START_AND_HELP: String = Source.fromResource("help.md").mkString
 }
 
 /**
@@ -68,7 +56,7 @@ trait CLPBot extends GlobalExecutionContext
 
           pollStorage.put(user.id, poll)
 
-          userStorage.map(user.id) { u => u.copy(pollAuthor = u.id) }
+          userStorage.map(user.id) { u => u.pollAuthor = u.id; u }
 
           sendMessages(poll.nextStage(InputMessage(user, msg.text.get)))
         }

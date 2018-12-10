@@ -19,7 +19,8 @@ case class CuisineCityPoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePo
   }
 
   override protected def onEndPoll(): Seq[SendMessage] = {
-    sendToParticipants { p => SendMessage(p.id, s"Спасибо за участие в опросе") }
+    sendToParticipants { p => SendMessage(p.id, "Спасибо за участие в опросе") } :+
+      SendMessage(author.id, "Спасибо за участие в опросе")
   }
 
   onStage { _ =>
@@ -49,6 +50,8 @@ case class CuisineCityPoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePo
         case Right(value: ApplyPoll) =>
           if (value.sendPoll) {
 
+            cuisineVote = Vote(participants :+ author)
+
             val toParticipants = sendToParticipants {
               u => SendMessage(u.id, s"${author.username} приглашает вас в кафе, напишите предпочитаемую кухню")
             }
@@ -63,41 +66,39 @@ case class CuisineCityPoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePo
   }
 
   onStage { message =>
-    parse(message.text)
-      .getOrElse(Json.Null)
-      .as[PollItem] match {
-      case Right(item: PollItem) =>
-        cuisineVote = cuisineVote.vote(message.from, item.value)
-        if (cuisineVote.isVoteEnd) {
-          /** *************************************************/
-          //places
-          val places = "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: "Кафе 1" ::
-            "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: "Кафе 1" :: Nil
+    cuisineVote = cuisineVote.vote(message.from, message.text)
+    if (cuisineVote.isVoteEnd) {
+      next { () =>
 
-          /** ************************************************/
+        /** *************************************************/
+        //places
+        val places = "Кафе 1" :: "Кафе 2" :: "Кафе 3" :: "Кафе 4" :: "Кафе 5" ::
+          "Кафе 6" :: "Кафе 7" :: "Кафе 8" :: "Кафе 9" :: "Кафе 10" :: Nil
 
-          placeVote = Vote(participants :+ author, places)
+        /** ************************************************/
 
-          val buttons = places
-            .map { place => InlineKeyboardButton.callbackData(place, PollItem(author.id, place).asJson.spaces2) }
+        placeVote = Vote(participants :+ author, places)
 
-          val markup = InlineKeyboardMarkup.singleColumn(buttons)
+        val buttons = places
+          .map { place => InlineKeyboardButton.callbackData(place, PollItem(author.id, place).asJson.spaces2) }
 
-          val toParticipants = sendToParticipants { u =>
-            SendMessage(u.id, "Выберете предпочитаемое кафе", replyMarkup = Some(markup))
-          }
+        val markup = InlineKeyboardMarkup.singleColumn(buttons)
 
-          next { () =>
-            SendMessage(message.from.id, "Ваш голос принят") :: Nil ++
-              sendToParticipants { p => SendMessage(p.id, "В результате голосования выбрано(а):" + cuisineVote.max) } ++
-              toParticipants
-          }
-        } else {
-          keep { () =>
-            SendMessage(message.from.id, "Ваш голос принят") :: Nil
-          }
+        val toParticipants = sendToParticipants { p =>
+          SendMessage(p.id, "В результате голосования выбрано:" + cuisineVote.max)
+        } ++ sendToParticipants { u =>
+          SendMessage(u.id, "Выберете предпочитаемое кафе", replyMarkup = Some(markup))
         }
-      case Left(_) => keep { () => Seq.empty }
+
+        val toAuthor = SendMessage(author.id, s"выберете предпочитаемое кафе", replyMarkup = Some(markup)) ::
+          SendMessage(author.id, "В результате голосования выбрано:" + cuisineVote.max) :: Nil
+
+        SendMessage(message.from.id, "Ваш голос принят") :: Nil ++ toParticipants ++ toAuthor
+      }
+    } else {
+      keep { () =>
+        SendMessage(message.from.id, "Ваш голос принят") :: Nil
+      }
     }
   }
 
@@ -112,8 +113,9 @@ case class CuisineCityPoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePo
           if (placeVote.isVoteEnd) {
             next { () =>
               SendMessage(message.from.id, "Ваш голос принят") +:
+                SendMessage(author.id, "В результате голосования выбрано:" + placeVote.max) +:
                 sendToParticipants {
-                  p => SendMessage(p.id, "В результате голосования выбрано(а):" + placeVote.max)
+                  p => SendMessage(p.id, "В результате голосования выбрано:" + placeVote.max)
                 }
             }
           } else {

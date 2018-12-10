@@ -76,7 +76,7 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
 
   def addParticipant(user: BotUser): Unit = {
     participants += user
-    userStorage.map(user.id) { u => u.copy(pollAuthor = author.id) }
+    userStorage.map(user.id) { u => u.pollAuthor = author.id; u }
   }
 
   /**
@@ -88,10 +88,10 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
     isPollEnd = true
     val messages = onCancelPoll()
     participants.foreach { user =>
-      userStorage.map(user.id) { u => u.copy(pollAuthor = BotUser.NOT_IN_POLL) }
+      userStorage.map(user.id) { u => u.pollAuthor = BotUser.NOT_IN_POLL; u }
     }
 
-    userStorage.map(author.id) { u => u.copy(pollAuthor = BotUser.NOT_IN_POLL) }
+    userStorage.map(author.id) { u => u.pollAuthor = BotUser.NOT_IN_POLL; u }
     messages
   }
 
@@ -105,10 +105,10 @@ abstract class BasePoll(val author: BotUser, val userStorage: InMemoryUserBotSto
       isPollEnd = true
       val messages = onEndPoll()
       participants.foreach { user =>
-        userStorage.map(user.id) { u => u.copy(pollAuthor = BotUser.NOT_IN_POLL) }
+        userStorage.map(user.id) { u => u.pollAuthor = BotUser.NOT_IN_POLL; u }
       }
 
-      userStorage.map(author.id) { u => u.copy(pollAuthor = BotUser.NOT_IN_POLL) }
+      userStorage.map(author.id) { u => u.pollAuthor = BotUser.NOT_IN_POLL; u }
       messages
     }
     else
