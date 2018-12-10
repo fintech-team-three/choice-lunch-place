@@ -6,7 +6,12 @@ import io.circe.Json
 import io.circe.generic.auto._
 import io.circe.parser._
 import io.circe.syntax._
+import teamthree.clp.YaPlaceApi.PlaceApi
+import teamthree.clp.YaPlaceApi.model.ApiModels
 import teamthree.clp.bot._
+
+import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext}
 
 case class CuisineCityPoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a, s) {
 
@@ -72,10 +77,15 @@ case class CuisineCityPoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePo
 
         /** *************************************************/
         //places
-        val places = "Кафе 1" :: "Кафе 2" :: "Кафе 3" :: "Кафе 4" :: "Кафе 5" ::
-          "Кафе 6" :: "Кафе 7" :: "Кафе 8" :: "Кафе 9" :: "Кафе 10" :: Nil
 
-        /** ************************************************/
+
+        val p: Seq[ApiModels.Cafe] = Await.result(PlaceApi.placesApi.searchCafeInCity(cuisineVote.max, city)
+          .map {
+            case teamthree.clp.YaPlaceApi.Success(result) => result
+            case teamthree.clp.YaPlaceApi.Error(_) => Seq.empty
+          }(ExecutionContext.global), 10 seconds)
+
+        val places = p.map { i => i.name }.take(10)
 
         placeVote = Vote(participants :+ author, places)
 

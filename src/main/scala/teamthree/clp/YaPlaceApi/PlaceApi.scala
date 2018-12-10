@@ -106,7 +106,7 @@ class PlacesApi(apiKey: String) {
       Some(coordinates), numResults = numEntries))
 }
 
-object PlaceApiExample extends App {
+object PlaceApi {
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global
   val apiKey = scala.util.Properties.envOrNone("YANDEX_TOKEN")
   val placesApi = apiKey match {
@@ -117,10 +117,10 @@ object PlaceApiExample extends App {
       sys.exit()
   }
 
-  val res1 = placesApi.searchCafeByCoords("кавказская кухня", (37.0, 55.43644829))
-  val res2 = placesApi.searchCafeInCity("французская кухня", "Екатеринбург")
-  val res3 = placesApi.searchCafeInArea("шашлык", (40, 60), (2, 3))
-  println(Await.result(res1, 10 seconds))
-  println(Await.result(res2, 10 seconds))
-  println(Await.result(res3, 10 seconds))
+//  val res1 = placesApi.searchCafeByCoords("кавказская кухня", (37.0, 55.43644829))
+//  val res2 = placesApi.searchCafeInCity("французская кухня", "Екатеринбург")
+//  val res3 = placesApi.searchCafeInArea("шашлык", (40, 60), (2, 3))
+//  println(Await.result(res1, 10 seconds))
+//  println(Await.result(res2, 10 seconds))
+//  println(Await.result(res3, 10 seconds))
 }
