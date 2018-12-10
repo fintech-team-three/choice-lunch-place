@@ -79,8 +79,14 @@ case class SimplePoll(a: BotUser, s: InMemoryUserBotStorage) extends BasePoll(a,
 
         if (placeVote.isVoteEnd) {
           next { () =>
-            SendMessage(message.from.id, "Ваш голос принят") +:
-              sendToParticipants { p => SendMessage(p.id, "В результате голосования выбрано(а):" + placeVote.max) }
+
+            val toParticipants = sendToParticipants { p =>
+              SendMessage(p.id, "В результате голосования выбрано:" + placeVote.max)
+            }
+
+            val toAuthor = SendMessage(author.id, "В результате голосования выбрано:" + placeVote.max) :: Nil
+
+            SendMessage(message.from.id, "Ваш голос принят") :: Nil ++ toParticipants ++ toAuthor
           }
         } else {
           keep { () => SendMessage(message.from.id, "Ваш голос принят") :: Nil }
